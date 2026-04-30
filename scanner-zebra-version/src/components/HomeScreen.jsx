@@ -399,8 +399,8 @@ function LogRow({ log, styles, colors }) {
   )
 }
 
-const SCAN_OUTER = 130
-const SCAN_INNER = 114
+const SCAN_OUTER = 148
+const SCAN_INNER = 130
 
 const makeStyles = (colors, mode) => {
   return StyleSheet.create({
@@ -510,8 +510,8 @@ const makeStyles = (colors, mode) => {
 
   heroWrap: {
     alignItems: 'center',
-    marginTop: -((SCAN_OUTER + 24) / 2),
-    marginBottom: spacing.sm,
+    marginTop: -((SCAN_OUTER + 24) / 2) + spacing.md,
+    marginBottom: spacing.lg,
     zIndex: 2,
     elevation: 2,
   },
@@ -650,6 +650,7 @@ const makeStyles = (colors, mode) => {
   sectionHead: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: spacing.md,
+    marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
   sectionTitle: { color: colors.onSurface, fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
