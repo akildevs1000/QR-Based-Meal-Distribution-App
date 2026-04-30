@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'liga';
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0b1326; }
+::-webkit-scrollbar-thumb { background: #2d3449; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #424754; }
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+  cursor: pointer;
+}
+
+@media print {
+  @page {
+    size: 53.98mm 85.6mm;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #print-card-area,
+  #print-card-area * {
+    visibility: visible !important;
+  }
+
+  #print-card-area {
+    position: fixed !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  #print-card-area .access-card {
+    page-break-after: always;
+    break-after: page;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  #print-card-area .access-card:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  #print-card-area.bulk-print-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, 53.98mm);
+    gap: 0;
+  }
+}

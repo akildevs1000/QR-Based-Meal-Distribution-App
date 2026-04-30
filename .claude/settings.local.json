@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export PATH=\"/c/Users/sabar/.config/herd-lite/bin:$PATH\")",
+      "Bash(php \"/c/Users/sabar/.config/herd-lite/bin/composer.phar\" -V)",
+      "Bash(php \"/c/Users/sabar/.config/herd-lite/bin/laravel.phar\" --version)",
+      "Bash(php artisan *)",
+      "Bash(npm run *)",
+      "Bash(npm -v)",
+      "Bash(npx --version)",
+      "Bash(npx expo *)",
+      "Bash(npx vite *)",
+      "Bash(unzip -p \"CMS - Dashboard.docx\" word/document.xml)",
+      "Read(//tmp/**)",
+      "Bash(python -c ' *)",
+      "Bash(mkdir -p /tmp)",
+      "Bash(python -c \"import json,sys;d=json.load\\(sys.stdin\\);print\\('require:',list\\(d.get\\('require',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(composer require *)",
+      "Bash(pkill -f \"artisan serve\")",
+      "Bash(npm install *)",
+      "Bash(php -l /d/projects/QR-Based-Meal-Distribution-App/backend/app/Models/User.php)",
+      "Bash(php -l /d/projects/QR-Based-Meal-Distribution-App/backend/app/Models/Role.php)",
+      "Bash(php -l /d/projects/QR-Based-Meal-Distribution-App/backend/app/Models/Permission.php)",
+      "Bash(php -l /d/projects/QR-Based-Meal-Distribution-App/backend/app/Http/Middleware/CheckPermission.php)",
+      "Bash(php -l /d/projects/QR-Based-Meal-Distribution-App/backend/app/Http/Controllers/Api/RoleController.php)",
+      "Bash(npx --no-install eslint src/App.jsx src/pages/Roles.jsx src/pages/Users.jsx src/components/SideNavBar.jsx src/components/RequirePermission.jsx src/lib/permissions.js src/api/queries.js)",
+      "Bash(npx --no-install eslint src/pages/Roles.jsx src/lib/permissions.js src/components/RequirePermission.jsx src/App.jsx src/components/SideNavBar.jsx)",
+      "Bash(npx --no-install eslint src/components/Checkbox.jsx src/pages/Employees.jsx src/pages/Users.jsx src/pages/Sites.jsx src/pages/Suppliers.jsx src/pages/MealRules.jsx src/pages/MealCategories.jsx src/pages/Roles.jsx)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(./gradlew assembleRelease)",
+      "Bash(/d/projects/QR-Based-Meal-Distribution-App/scanner/android/gradlew.bat -p /d/projects/QR-Based-Meal-Distribution-App/scanner/android :app:clean assembleRelease --no-daemon)",
+      "Bash(tee /d/projects/QR-Based-Meal-Distribution-App/scanner/android/build.log)"
+    ]
+  }
+}
