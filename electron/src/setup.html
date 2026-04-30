@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Setup — QR Meal Server</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f172a; color: #e2e8f0;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.subtitle { margin: 0 0 20px; color: #94a3b8; font-size: 13px; }
+  fieldset { border: 1px solid #1e293b; border-radius: 6px; padding: 14px 16px 6px; margin-bottom: 14px; }
+  legend { padding: 0 6px; color: #cbd5e1; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  label { display: block; margin: 8px 0 4px; color: #cbd5e1; font-size: 13px; }
+  input {
+    width: 100%; padding: 8px 10px;
+    background: #0b1220; border: 1px solid #1e293b; border-radius: 4px;
+    color: #e2e8f0; font: inherit;
+  }
+  input:focus { outline: none; border-color: #3b82f6; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+  button {
+    padding: 8px 14px; border-radius: 4px; border: 1px solid #1e293b;
+    background: #1e293b; color: #e2e8f0; font: inherit; cursor: pointer;
+  }
+  button.primary { background: #3b82f6; border-color: #3b82f6; }
+  button.primary:disabled { background: #334155; border-color: #334155; cursor: wait; }
+  button:hover { filter: brightness(1.15); }
+  .status { margin-top: 10px; padding: 8px 10px; border-radius: 4px; font-size: 13px; min-height: 20px; }
+  .status.ok { background: #064e3b; color: #6ee7b7; }
+  .status.err { background: #7f1d1d; color: #fecaca; }
+  .status.info { background: #1e3a8a; color: #bfdbfe; }
+</style>
+</head>
+<body>
+  <h1>QR Meal Server — First-Run Setup</h1>
+  <p class="subtitle">Enter your Postgres connection details. The server will write a config file and run database migrations.</p>
+
+  <form id="form">
+    <fieldset>
+      <legend>Database (Postgres)</legend>
+      <div class="row">
+        <div>
+          <label>Host</label>
+          <input id="db_host" value="127.0.0.1" required />
+        </div>
+        <div style="max-width: 110px;">
+          <label>Port</label>
+          <input id="db_port" value="5432" required />
+        </div>
+      </div>
+      <label>Database name</label>
+      <input id="db_database" value="qr_meal" required />
+      <div class="row">
+        <div>
+          <label>Username</label>
+          <input id="db_username" value="postgres" required />
+        </div>
+        <div>
+          <label>Password</label>
+          <input id="db_password" type="password" required />
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Application</legend>
+      <label>Public URL (used for links in emails/QRs)</label>
+      <input id="app_url" value="http://localhost:8000" required />
+    </fieldset>
+
+    <div id="status" class="status"></div>
+
+    <div class="actions">
+      <button type="button" id="testBtn">Test connection</button>
+      <button type="submit" id="saveBtn" class="primary">Save & start</button>
+    </div>
+  </form>
+
+<script>
+  const $ = id => document.getElementById(id)
+  const status = $('status')
+  const setStatus = (msg, kind = 'info') => {
+    status.className = 'status ' + kind
+    status.textContent = msg
+  }
+  const collect = () => ({
+    db_host: $('db_host').value.trim(),
+    db_port: $('db_port').value.trim(),
+    db_database: $('db_database').value.trim(),
+    db_username: $('db_username').value.trim(),
+    db_password: $('db_password').value,
+    app_url: $('app_url').value.trim(),
+  })
+
+  $('testBtn').addEventListener('click', async () => {
+    setStatus('Testing connection…', 'info')
+    const res = await window.setupApi.testConnection(collect())
+    if (res.ok) setStatus('Connection succeeded.', 'ok')
+    else setStatus('Connection failed: ' + res.error, 'err')
+  })
+
+  $('form').addEventListener('submit', async (ev) => {
+    ev.preventDefault()
+    $('saveBtn').disabled = true
+    setStatus('Saving config and running migrations…', 'info')
+    const res = await window.setupApi.save(collect())
+    if (res.ok) {
+      setStatus('Done. Starting server…', 'ok')
+      // Window will close automatically once setup succeeds.
+    } else {
+      $('saveBtn').disabled = false
+      setStatus('Setup failed: ' + res.error, 'err')
+    }
+  })
+</script>
+</body>
+</html>

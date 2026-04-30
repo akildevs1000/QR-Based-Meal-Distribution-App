@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Logs — QR Meal Server</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0f172a; color: #e2e8f0;
+    font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; background: #0b1220; border-bottom: 1px solid #1e293b;
+  }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  header .dot.on { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+  header .dot.off { background: #ef4444; }
+  header .urls { color: #94a3b8; font-size: 12px; margin-left: auto; }
+  header button {
+    padding: 5px 10px; border-radius: 4px; border: 1px solid #1e293b;
+    background: #1e293b; color: #e2e8f0; cursor: pointer; font: inherit;
+  }
+  header button:hover { filter: brightness(1.15); }
+  pre {
+    margin: 0; padding: 12px 14px; height: calc(100% - 44px); overflow: auto;
+    font: 12px/1.5 "Cascadia Code", Consolas, "Courier New", monospace;
+    color: #cbd5e1; white-space: pre-wrap; word-break: break-all;
+  }
+  .ts { color: #64748b; }
+  .err { color: #fca5a5; }
+</style>
+</head>
+<body>
+  <header>
+    <span class="dot off" id="dot"></span>
+    <span id="state">Stopped</span>
+    <button id="openAdminBtn">Open Admin</button>
+    <button id="restartBtn">Restart</button>
+    <span class="urls" id="urls"></span>
+  </header>
+  <pre id="log"></pre>
+<script>
+  const log = document.getElementById('log')
+  const dot = document.getElementById('dot')
+  const state = document.getElementById('state')
+  const urls = document.getElementById('urls')
+
+  const append = (line) => {
+    const div = document.createElement('div')
+    if (/error|exception|fatal/i.test(line)) div.className = 'err'
+    div.textContent = line
+    log.appendChild(div)
+    // Trim history at 2000 lines (renderer-side cap; main caps at 500 in memory).
+    while (log.childNodes.length > 2000) log.removeChild(log.firstChild)
+    log.scrollTop = log.scrollHeight
+  }
+
+  async function refreshStatus() {
+    const s = await window.logsApi.status()
+    dot.className = 'dot ' + (s.running ? 'on' : 'off')
+    state.textContent = s.running ? `Running on port ${s.port}` : 'Stopped'
+    urls.textContent = (s.ips || []).map(ip => `http://${ip}:${s.port}`).join('   ')
+  }
+
+  document.getElementById('restartBtn').addEventListener('click', async () => {
+    append('[ui] requesting restart…')
+    await window.logsApi.restart()
+    refreshStatus()
+  })
+  document.getElementById('openAdminBtn').addEventListener('click', () => {
+    window.logsApi.openAdmin()
+  })
+
+  ;(async () => {
+    const initial = await window.logsApi.initial()
+    initial.forEach(append)
+    await refreshStatus()
+    setInterval(refreshStatus, 2000)
+  })()
+
+  window.logsApi.onLine(append)
+</script>
+</body>
+</html>
