@@ -69,9 +69,9 @@ async function runFirstRunSetup({ phpExe, backendDir, values, onLog }) {
   await runArtisan(phpExe, backendDir, ['key:generate', '--force'], onLog)
   onLog?.('[setup] running migrations')
   await runArtisan(phpExe, backendDir, ['migrate', '--force'], onLog)
-  // Seed only on a totally fresh DB. We don't know if the customer wants seed
-  // data, so skip seeding by default. (Setup UI can offer a checkbox later.)
-  onLog?.('[setup] complete')
+  onLog?.('[setup] seeding initial data (admin user + permissions)')
+  await runArtisan(phpExe, backendDir, ['db:seed', '--force'], onLog)
+  onLog?.('[setup] complete — default login: admin@example.com / password')
 }
 
 module.exports = { isConfigured, runFirstRunSetup }
