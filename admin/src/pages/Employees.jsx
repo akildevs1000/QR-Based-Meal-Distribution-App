@@ -13,6 +13,13 @@ import {
 
 const inputCls =
   'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+const inputErrorCls =
+  'w-full bg-surface-container-lowest border border-red-500/70 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-red-400 focus:ring-1 focus:ring-red-400 focus:outline-none transition-all'
+
+function FieldError({ messages }) {
+  if (!messages || messages.length === 0) return null
+  return <p className="mt-1 text-xs text-red-400">{Array.isArray(messages) ? messages[0] : messages}</p>
+}
 
 export default function Employees() {
   const [q, setQ] = useState('')
@@ -23,32 +30,61 @@ export default function Employees() {
   const save = useSaveEmployee()
   const del = useDeleteEmployee()
   const [editing, setEditing] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [formError, setFormError] = useState(null)
   const [viewing, setViewing] = useState(null)
   const [printing, setPrinting] = useState(null)
   const [selected, setSelected] = useState(new Set())
   const [bulkPrinting, setBulkPrinting] = useState(null)
 
+  const clearFieldError = (field) => {
+    if (errors[field]) {
+      const { [field]: _omit, ...rest } = errors
+      setErrors(rest)
+    }
+    if (formError) setFormError(null)
+  }
+
   const sites = sitesData?.data ?? []
 
-  const openNew = () => setEditing({
-    employee_code: '',
-    name: '',
-    designation: '',
-    meal_eligibility: true,
-    duty_status: 'on_duty',
-    date_of_joining: '',
-    grade: '',
-    site_id: null,
-    profile_picture: null,
-    is_vip: false,
-    active: true,
-  })
-  const close = () => setEditing(null)
+  const openNew = () => {
+    setErrors({})
+    setFormError(null)
+    setEditing({
+      employee_code: '',
+      name: '',
+      designation: '',
+      meal_eligibility: true,
+      duty_status: 'on_duty',
+      date_of_joining: '',
+      grade: '',
+      site_id: null,
+      profile_picture: null,
+      is_vip: false,
+      active: true,
+    })
+  }
+  const close = () => {
+    setEditing(null)
+    setErrors({})
+    setFormError(null)
+  }
 
   const onSave = async (e) => {
     e.preventDefault()
-    await save.mutateAsync(editing)
-    close()
+    setErrors({})
+    setFormError(null)
+    try {
+      await save.mutateAsync(editing)
+      close()
+    } catch (err) {
+      const data = err?.response?.data
+      if (err?.response?.status === 422 && data?.errors) {
+        setErrors(data.errors)
+      } else {
+        setFormError(data?.message || err?.message || 'Could not save employee.')
+      }
+    }
   }
 
   const apiOrigin = (import.meta.env.VITE_API_BASE || 'http://localhost:8000/api').replace(/\/api\/?$/, '')
@@ -206,7 +242,7 @@ export default function Employees() {
                   <RowMenu
                     items={[
                       { icon: 'visibility', label: 'View', onClick: () => setViewing(e) },
-                      { icon: 'edit', label: 'Edit', onClick: () => setEditing(e) },
+                      { icon: 'edit', label: 'Edit', onClick: () => { setErrors({}); setFormError(null); setEditing(e) } },
                       { icon: 'print', label: 'Print card', onClick: () => setPrinting(e) },
                       { icon: 'delete', label: 'Delete', danger: true, onClick: () => { if (confirm(`Delete ${e.employee_code}?`)) del.mutate(e.id) } },
                     ]}
@@ -291,7 +327,7 @@ export default function Employees() {
             <div className="flex justify-end gap-sm pt-lg mt-md border-t border-outline-variant/30">
               <button onClick={() => setViewing(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Close</button>
               <button
-                onClick={() => { const e = viewing; setViewing(null); setEditing(e) }}
+                onClick={() => { const e = viewing; setViewing(null); setErrors({}); setFormError(null); setEditing(e) }}
                 className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
               >
                 Edit
@@ -308,48 +344,58 @@ export default function Employees() {
               <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? 'Edit' : 'New'} Employee</h2>
               <p className="text-body-md text-slate-400 mt-1">Assign a unique code to generate a QR.</p>
             </div>
+            {formError && (
+              <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {formError}
+              </div>
+            )}
             <PhotoDropzone
               value={editing.profile_picture}
               existingUrl={pictureUrl(typeof editing.profile_picture === 'string' ? editing.profile_picture : null)}
-              onChange={(file) => setEditing({ ...editing, profile_picture: file })}
+              onChange={(file) => { setEditing({ ...editing, profile_picture: file }); clearFieldError('profile_picture') }}
             />
+            <FieldError messages={errors.profile_picture} />
             <div>
               <label className="block text-label-md text-slate-300 mb-1.5">Employee code</label>
               <input
                 required
                 value={editing.employee_code || ''}
-                onChange={(ev) => setEditing({ ...editing, employee_code: ev.target.value })}
-                className={`${inputCls} font-mono`}
+                onChange={(ev) => { setEditing({ ...editing, employee_code: ev.target.value }); clearFieldError('employee_code') }}
+                className={`${errors.employee_code ? inputErrorCls : inputCls} font-mono`}
                 placeholder="EMP-00001"
               />
+              <FieldError messages={errors.employee_code} />
             </div>
             <div>
               <label className="block text-label-md text-slate-300 mb-1.5">Name</label>
               <input
                 required
                 value={editing.name || ''}
-                onChange={(ev) => setEditing({ ...editing, name: ev.target.value })}
-                className={inputCls}
+                onChange={(ev) => { setEditing({ ...editing, name: ev.target.value }); clearFieldError('name') }}
+                className={errors.name ? inputErrorCls : inputCls}
               />
+              <FieldError messages={errors.name} />
             </div>
             <div className="grid grid-cols-2 gap-md">
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">Designation</label>
                 <input
                   value={editing.designation || ''}
-                  onChange={(ev) => setEditing({ ...editing, designation: ev.target.value })}
-                  className={inputCls}
+                  onChange={(ev) => { setEditing({ ...editing, designation: ev.target.value }); clearFieldError('designation') }}
+                  className={errors.designation ? inputErrorCls : inputCls}
                   placeholder="Software Engineer"
                 />
+                <FieldError messages={errors.designation} />
               </div>
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">Grade</label>
                 <input
                   value={editing.grade || ''}
-                  onChange={(ev) => setEditing({ ...editing, grade: ev.target.value })}
-                  className={inputCls}
+                  onChange={(ev) => { setEditing({ ...editing, grade: ev.target.value }); clearFieldError('grade') }}
+                  className={errors.grade ? inputErrorCls : inputCls}
                   placeholder="L2"
                 />
+                <FieldError messages={errors.grade} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-md">
@@ -380,21 +426,23 @@ export default function Employees() {
               <label className="block text-label-md text-slate-300 mb-1.5">Date of joining</label>
               <DatePicker
                 value={editing.date_of_joining ? String(editing.date_of_joining).slice(0, 10) : ''}
-                onChange={(v) => setEditing({ ...editing, date_of_joining: v })}
+                onChange={(v) => { setEditing({ ...editing, date_of_joining: v }); clearFieldError('date_of_joining') }}
                 placeholder="Pick a date"
               />
+              <FieldError messages={errors.date_of_joining} />
             </div>
             <div>
               <label className="block text-label-md text-slate-300 mb-1.5">Site</label>
               <Select
                 searchable
                 value={editing.site_id ?? ''}
-                onChange={(v) => setEditing({ ...editing, site_id: v === '' ? null : Number(v) })}
+                onChange={(v) => { setEditing({ ...editing, site_id: v === '' ? null : Number(v) }); clearFieldError('site_id') }}
                 options={[
                   { value: '', label: '— Unassigned —' },
                   ...sites.map((s) => ({ value: String(s.id), label: `${s.site_code} — ${s.name}` })),
                 ]}
               />
+              <FieldError messages={errors.site_id} />
             </div>
             <div className="flex gap-md text-sm">
               <label className="flex items-center gap-2 text-slate-300">
