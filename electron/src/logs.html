@@ -18,6 +18,7 @@
   header .dot.busy { background: #eab308; box-shadow: 0 0 8px #eab308; }
   header #state { font-weight: 500; }
   header .spacer { flex: 1; }
+  header .version { color: #64748b; font-size: 11px; }
   header .urls { color: #94a3b8; font-size: 12px; }
   header button {
     padding: 5px 10px; border-radius: 4px; border: 1px solid #1e293b;
@@ -77,6 +78,7 @@
   <header>
     <span class="dot off" id="dot"></span>
     <span id="state">Stopped</span>
+    <span class="version" id="version"></span>
     <span class="spacer"></span>
     <button id="startBtn" class="primary" hidden>Start</button>
     <button id="stopBtn" class="danger" hidden>Stop</button>
@@ -294,6 +296,11 @@
     initial.forEach(append)
     await refreshStatus()
     setInterval(refreshStatus, 2000)
+    // Show app version in the header.
+    try {
+      const v = await window.logsApi.version()
+      if (v) document.getElementById('version').textContent = `v${v}`
+    } catch {}
   })()
 
   window.logsApi.onLine(append)

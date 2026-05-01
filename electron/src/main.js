@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
+const { spawn } = require('node:child_process')
 
 const { resolvePaths } = require('./paths')
 const { PhpServer } = require('./php-server')
@@ -100,6 +101,11 @@ function bootstrap() {
     if (!isConfigured(paths.backendDir)) {
       openSetupWindow()
     } else {
+      // Auto-apply any pending migrations. Idempotent: does nothing if all
+      // migrations are already recorded in the migrations table.
+      await runMigrateOnLaunch().catch(err => {
+        phpServer.appendLog(`[supervisor] migrate on launch failed: ${err.message}`)
+      })
       phpServer.start()
       queueWorker.start()
       scheduler.start()
@@ -122,6 +128,26 @@ function bootstrap() {
     ])
     fileLogger?.close()
     app.exit(0)
+  })
+}
+
+// Runs `php artisan migrate --force` and resolves on success / rejects on
+// non-zero exit. Called on launch so any new migrations land automatically.
+function runMigrateOnLaunch() {
+  return new Promise((resolve, reject) => {
+    phpServer.pushSystemMessage('checking for pending migrations…')
+    const proc = spawn(paths.phpExe, ['artisan', 'migrate', '--force'], {
+      cwd: paths.backendDir,
+      windowsHide: true,
+    })
+    let stderr = ''
+    proc.stdout.on('data', d => phpServer.appendLog(d.toString()))
+    proc.stderr.on('data', d => { stderr += d.toString(); phpServer.appendLog(d.toString()) })
+    proc.on('exit', code => {
+      if (code === 0) resolve()
+      else reject(new Error(stderr.trim() || `migrate exited ${code}`))
+    })
+    proc.on('error', reject)
   })
 }
 
@@ -252,6 +278,7 @@ ipcMain.handle('server:status', () => ({
   port: SERVER_PORT,
   ips: getLanIps(),
 }))
+ipcMain.handle('app:version', () => app.getVersion())
 ipcMain.handle('server:start', () => {
   phpServer?.start()
   queueWorker?.start()

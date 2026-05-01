@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld('logsApi', {
   openSetup: () => ipcRenderer.invoke('server:open-setup'),
   availableLogDates: () => ipcRenderer.invoke('server:available-log-dates'),
   downloadLogs: (range) => ipcRenderer.invoke('server:download-logs', range),
+  version: () => ipcRenderer.invoke('app:version'),
   onLine: (cb) => ipcRenderer.on('log:line', (_e, line) => cb(line)),
 })
