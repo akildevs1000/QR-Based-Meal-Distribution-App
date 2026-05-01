@@ -10,6 +10,7 @@ const { FileLogger } = require('./file-logger')
 
 const SERVER_PORT = 8000
 const APP_NAME = 'Meal Distribution App'
+const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png')
 
 let paths = null
 let phpServer = null
@@ -139,6 +140,7 @@ function openSetupWindow() {
     width: 520,
     height: 640,
     title: `${APP_NAME} — Setup`,
+    icon: APP_ICON,
     resizable: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload-setup.js'),
@@ -201,6 +203,7 @@ function openLogsWindow() {
     width: 900,
     height: 600,
     title: APP_NAME,
+    icon: APP_ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload-logs.js'),
       contextIsolation: true,
@@ -310,6 +313,7 @@ function openAdminWindow() {
     width: 1280,
     height: 800,
     title: `${APP_NAME} — Admin`,
+    icon: APP_ICON,
     webPreferences: {
       // file:// origin can't reach http://localhost:8000 with default CORS; admin
       // is trusted local code so disabling webSecurity is acceptable here.

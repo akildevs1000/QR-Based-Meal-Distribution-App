@@ -68,7 +68,7 @@
           ]
         }
       ],
-      "icon": "build/icon.ico",
+      "icon": "build/icon.png",
       "artifactName": "MealDistributionApp-Setup-${version}.${ext}"
     },
     "nsis": {

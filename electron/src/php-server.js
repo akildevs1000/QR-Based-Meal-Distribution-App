@@ -70,16 +70,37 @@ class PhpServer extends EventEmitter {
     if (!this.child) return
     return new Promise(resolve => {
       const child = this.child
-      const onExit = () => resolve()
-      child.once('exit', onExit)
-      try { child.kill() } catch {}
+      child.once('exit', () => resolve())
+      this._killTree(child.pid)
+      // Hard-kill the whole tree if the graceful path didn't take effect in 3s.
       setTimeout(() => {
         if (this.child) {
-          try { this.child.kill('SIGKILL') } catch {}
+          this._killTree(this.child.pid, true)
         }
         resolve()
       }, 3000)
     })
+  }
+
+  // Kills the child and ALL of its descendants. On Windows we have to use
+  // `taskkill /T` because child.kill() only signals the direct child; the
+  // scheduler/worker spawn their own php.exe subprocesses and would otherwise
+  // be left as orphans. On POSIX we send the kill via the negative pid (the
+  // process group) which has the same effect.
+  _killTree(pid, hard = false) {
+    if (!pid) return
+    if (process.platform === 'win32') {
+      try {
+        spawn('taskkill', ['/PID', String(pid), '/T', ...(hard ? ['/F'] : [])], {
+          windowsHide: true,
+          stdio: 'ignore',
+        })
+      } catch {}
+    } else {
+      try { process.kill(-pid, hard ? 'SIGKILL' : 'SIGTERM') } catch {
+        try { process.kill(pid, hard ? 'SIGKILL' : 'SIGTERM') } catch {}
+      }
+    }
   }
 
   async restart() {
