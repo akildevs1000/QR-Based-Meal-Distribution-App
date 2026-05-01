@@ -129,29 +129,80 @@ async function ensureDatabaseExists({ phpExe, values, onLog }) {
   else onLog?.(`[setup] database "${target}" already exists`)
 }
 
-// Creates (or refreshes) the single admin user. Permissions/roles must already
-// be seeded before calling this so the user can be linked to the admin role.
+// Counts rows in a table via `php -r`. Returns -1 if the table doesn't exist
+// or any other error fires — used to safely probe whether seed/admin steps
+// have already been done.
+async function countRows({ phpExe, values, table }) {
+  const host = escapePhp(values.db_host)
+  const port = escapePhp(values.db_port || '5432')
+  const user = escapePhp(values.db_username)
+  const pass = escapePhp(values.db_password)
+  const db   = escapePhp(values.db_database)
+  const tbl  = escapePhp(table)
+  const code = `
+    try {
+      $pdo = new PDO('pgsql:host=${host};port=${port};dbname=${db}', '${user}', '${pass}',
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+      $stmt = $pdo->query('SELECT COUNT(*) FROM "' . str_replace('"', '', '${tbl}') . '"');
+      echo (int)$stmt->fetchColumn();
+    } catch (Throwable $e) {
+      echo -1;
+    }
+  `
+  const out = await runPhpInline(phpExe, code).catch(() => '-1')
+  return parseInt(out, 10)
+}
+
+// Creates the single admin user only if no row with that email exists yet.
+// Won't clobber an existing admin's password if they're connecting to an
+// already-set-up database.
 async function createAdminUser({ phpExe, backendDir, onLog }) {
-  // Run via `artisan tinker --execute` so Laravel's password-hashing cast and
-  // model events fire correctly.
-  const code = `\\App\\Models\\User::updateOrCreate(['email' => 'admin@example.com'], ['name' => 'Admin', 'password' => 'password', 'role' => 'admin', 'active' => true]); echo 'OK';`
-  await runArtisan(phpExe, backendDir, ['tinker', '--execute=' + code], onLog)
-  onLog?.('[setup] admin user ready (admin@example.com / password)')
+  const code = `if (\\App\\Models\\User::where('email', 'admin@example.com')->exists()) { echo 'EXISTS'; } else { \\App\\Models\\User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'password' => 'password', 'role' => 'admin', 'active' => true]); echo 'CREATED'; }`
+  let captured = ''
+  await runArtisan(phpExe, backendDir, ['tinker', '--execute=' + code], (line) => {
+    captured += line
+    onLog?.(line)
+  })
+  if (captured.includes('CREATED')) onLog?.('[setup] admin user created (admin@example.com / password)')
+  else onLog?.('[setup] admin user already exists — left untouched')
 }
 
 async function runFirstRunSetup({ phpExe, backendDir, values, onLog }) {
   onLog?.('[setup] checking database')
   await ensureDatabaseExists({ phpExe, values, onLog })
+
   onLog?.('[setup] writing config')
   writeEnv(backendDir, values)
-  onLog?.('[setup] generating app key')
-  await runArtisan(phpExe, backendDir, ['key:generate', '--force'], onLog)
+
+  // APP_KEY is per-install; only generate one if .env doesn't have a non-stub
+  // value yet. Customers connecting to an existing DB might already have one.
+  const envPath = path.join(backendDir, '.env')
+  const env = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : ''
+  if (!/APP_KEY=base64:[A-Za-z0-9+/=]+/.test(env)) {
+    onLog?.('[setup] generating app key')
+    await runArtisan(phpExe, backendDir, ['key:generate', '--force'], onLog)
+  } else {
+    onLog?.('[setup] app key already set — kept as-is')
+  }
+
+  // Migrate is idempotent — Laravel skips migrations already recorded in the
+  // `migrations` table — so it's safe to run against either a fresh DB or one
+  // that's already populated.
   onLog?.('[setup] running migrations')
   await runArtisan(phpExe, backendDir, ['migrate', '--force'], onLog)
-  onLog?.('[setup] seeding permissions and roles')
-  await runArtisan(phpExe, backendDir, ['db:seed', '--class=PermissionSeeder', '--force'], onLog)
+
+  // Only seed the permission catalog if it's empty. Re-running PermissionSeeder
+  // on a populated DB could create duplicates depending on its implementation.
+  const permCount = await countRows({ phpExe, values, table: 'permissions' })
+  if (permCount <= 0) {
+    onLog?.('[setup] seeding permissions and roles')
+    await runArtisan(phpExe, backendDir, ['db:seed', '--class=PermissionSeeder', '--force'], onLog)
+  } else {
+    onLog?.(`[setup] permissions already seeded (${permCount} rows) — skipped`)
+  }
+
   await createAdminUser({ phpExe, backendDir, onLog })
-  onLog?.('[setup] complete — login: admin@example.com / password')
+  onLog?.('[setup] complete')
 }
 
 module.exports = { isConfigured, runFirstRunSetup }
