@@ -35,6 +35,34 @@
   }
   header input[type="search"]:focus { outline: none; border-color: #2563eb; }
   pre .hl { background: #facc15; color: #0f172a; border-radius: 2px; }
+
+  /* Date-range modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: #0b1220; border: 1px solid #1e293b; border-radius: 8px;
+    padding: 20px; width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  .modal h2 { margin: 0 0 4px; font-size: 16px; }
+  .modal p  { margin: 0 0 14px; color: #94a3b8; font-size: 12px; }
+  .modal label { display: block; font-size: 12px; color: #cbd5e1; margin: 10px 0 4px; }
+  .modal input[type="date"] {
+    width: 100%; padding: 6px 8px; background: #0f172a;
+    border: 1px solid #1e293b; border-radius: 4px;
+    color: #e2e8f0; font: inherit; color-scheme: dark;
+  }
+  .modal input[type="date"]:focus { outline: none; border-color: #2563eb; }
+  .modal .err { color: #fca5a5; font-size: 12px; margin-top: 8px; min-height: 16px; }
+  .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .modal button {
+    padding: 6px 12px; border-radius: 4px; border: 1px solid #1e293b;
+    background: #1e293b; color: #e2e8f0; cursor: pointer; font: inherit;
+  }
+  .modal button.primary { background: #2563eb; border-color: #2563eb; }
+  .modal button:hover { filter: brightness(1.15); }
   pre {
     margin: 0; padding: 12px 14px; height: calc(100% - 50px); overflow: auto;
     font: 12px/1.6 "Cascadia Code", Consolas, "Courier New", monospace;
@@ -55,10 +83,27 @@
     <button id="restartBtn">Restart</button>
     <button id="openAdminBtn" class="primary">Open Admin</button>
     <button id="settingsBtn" class="ghost" title="Database settings">Settings</button>
+    <button id="downloadLogsBtn" class="ghost" title="Download server logs">Download Server Logs</button>
     <input type="search" id="searchInput" placeholder="Search logs… (Ctrl+F)" />
     <span class="urls" id="urls"></span>
   </header>
   <pre id="log"></pre>
+
+  <div class="modal-backdrop" id="downloadModal">
+    <div class="modal">
+      <h2>Download Server Logs</h2>
+      <p>Choose a date range. Only logs within this range will be saved.</p>
+      <label for="dateFrom">From</label>
+      <input type="date" id="dateFrom" />
+      <label for="dateTo">To</label>
+      <input type="date" id="dateTo" />
+      <div class="err" id="dateErr"></div>
+      <div class="row">
+        <button id="downloadCancelBtn">Cancel</button>
+        <button id="downloadConfirmBtn" class="primary">Download</button>
+      </div>
+    </div>
+  </div>
 <script>
   const log = document.getElementById('log')
   const dot = document.getElementById('dot')
@@ -194,6 +239,55 @@
   })
   openAdminBtn.addEventListener('click', () => window.logsApi.openAdmin())
   settingsBtn.addEventListener('click', () => window.logsApi.openSetup())
+
+  // ---------- Download server logs (date-range modal) ----------
+  const downloadModal = document.getElementById('downloadModal')
+  const dateFrom = document.getElementById('dateFrom')
+  const dateTo = document.getElementById('dateTo')
+  const dateErr = document.getElementById('dateErr')
+
+  const todayStr = () => new Date().toISOString().slice(0, 10)
+  const sysLog = (msg) => append(`[${new Date().toTimeString().slice(0, 8)}] (system) ${msg}`)
+
+  document.getElementById('downloadLogsBtn').addEventListener('click', async () => {
+    const dates = await window.logsApi.availableLogDates()
+    if (!dates || dates.length === 0) {
+      sysLog('no log files yet — nothing to download.')
+      return
+    }
+    // Bound the picker to the available range; default to the full range.
+    const min = dates[0]
+    const max = dates[dates.length - 1]
+    dateFrom.min = min; dateFrom.max = max; dateFrom.value = min
+    dateTo.min = min;   dateTo.max = max;   dateTo.value = max
+    dateErr.textContent = ''
+    downloadModal.classList.add('show')
+    setTimeout(() => dateFrom.focus(), 50)
+  })
+
+  const closeModal = () => downloadModal.classList.remove('show')
+  document.getElementById('downloadCancelBtn').addEventListener('click', closeModal)
+  downloadModal.addEventListener('click', (ev) => { if (ev.target === downloadModal) closeModal() })
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && downloadModal.classList.contains('show')) closeModal()
+  })
+
+  document.getElementById('downloadConfirmBtn').addEventListener('click', async () => {
+    const from = dateFrom.value
+    const to = dateTo.value
+    if (!from || !to) { dateErr.textContent = 'Pick both dates.'; return }
+    if (from > to)    { dateErr.textContent = '"From" must be before or equal to "To".'; return }
+    dateErr.textContent = ''
+    const r = await window.logsApi.downloadLogs({ from, to })
+    if (r?.ok) {
+      sysLog(`saved ${r.count} day(s) of logs to ${r.path}`)
+      closeModal()
+    } else if (r && !r.canceled) {
+      dateErr.textContent = r.error || 'Download failed.'
+    } else if (r?.canceled) {
+      // User cancelled the OS save dialog — keep our modal open in case they retry.
+    }
+  })
 
   ;(async () => {
     const initial = await window.logsApi.initial()

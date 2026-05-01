@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -6,6 +6,7 @@ const os = require('node:os')
 const { resolvePaths } = require('./paths')
 const { PhpServer } = require('./php-server')
 const { isConfigured, runFirstRunSetup } = require('./setup')
+const { FileLogger } = require('./file-logger')
 
 const SERVER_PORT = 8000
 const APP_NAME = 'Meal Distribution App'
@@ -14,6 +15,7 @@ let paths = null
 let phpServer = null
 let queueWorker = null
 let scheduler = null
+let fileLogger = null
 let setupWindow = null
 let logsWindow = null
 let adminWindow = null
@@ -35,6 +37,13 @@ function bootstrap() {
     if (process.platform === 'win32') app.setAppUserModelId('com.akilgroup.mealdistributionapp')
 
     paths = resolvePaths()
+
+    // Persist supervisor logs alongside Laravel's own logs in <backend>/storage/logs/.
+    // Single folder for everything; daily rotation, 7-day retention.
+    fileLogger = new FileLogger({
+      dir: path.join(paths.backendDir, 'storage', 'logs'),
+      retentionDays: 7,
+    })
 
     phpServer = new PhpServer({
       tag: 'server',
@@ -79,6 +88,11 @@ function bootstrap() {
     queueWorker.on('log', forwardLog)
     scheduler.on('log', forwardLog)
 
+    // Mirror everything to the on-disk log file too.
+    phpServer.on('log', line => fileLogger?.write(line))
+    queueWorker.on('log', line => fileLogger?.write(line))
+    scheduler.on('log', line => fileLogger?.write(line))
+
     if (!isConfigured(paths.backendDir)) {
       openSetupWindow()
     } else {
@@ -102,6 +116,7 @@ function bootstrap() {
       queueWorker ? queueWorker.stop() : Promise.resolve(),
       scheduler ? scheduler.stop() : Promise.resolve(),
     ])
+    fileLogger?.close()
     app.exit(0)
   })
 }
@@ -221,6 +236,67 @@ ipcMain.handle('server:restart', async () => {
 })
 ipcMain.handle('server:open-setup', () => openSetupWindow())
 ipcMain.handle('server:open-admin', () => openAdminWindow())
+// Single folder, two file-name patterns:
+//   server-YYYY-MM-DD.log   — written by Electron supervisor
+//   laravel-YYYY-MM-DD.log  — written by Laravel
+// Returns the union of dates seen across both patterns.
+function logDir() { return path.join(paths.backendDir, 'storage', 'logs') }
+
+ipcMain.handle('server:available-log-dates', () => {
+  const dir = logDir()
+  if (!fs.existsSync(dir)) return []
+  const dates = new Set()
+  for (const n of fs.readdirSync(dir)) {
+    const m = n.match(/^(?:server|laravel)-(\d{4}-\d{2}-\d{2})\.log$/)
+    if (m) dates.add(m[1])
+    // Pre-rotation single-file laravel.log shows up under today's date.
+    else if (n === 'laravel.log') dates.add(new Date().toISOString().slice(0, 10))
+  }
+  return Array.from(dates).sort()
+})
+
+ipcMain.handle('server:download-logs', async (_e, { from, to } = {}) => {
+  const dir = logDir()
+  if (!fs.existsSync(dir)) return { ok: false, error: 'No log folder yet.' }
+
+  const inRange = (date) => (!from || date >= from) && (!to || date <= to)
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Collect both server-*.log and laravel-*.log files in the date range,
+  // plus the legacy single-file laravel.log when "today" is in range.
+  const sources = []
+  for (const n of fs.readdirSync(dir)) {
+    const m = n.match(/^(server|laravel)-(\d{4}-\d{2}-\d{2})\.log$/)
+    if (m && inRange(m[2])) {
+      sources.push({ kind: m[1], date: m[2], path: path.join(dir, n) })
+    } else if (n === 'laravel.log' && inRange(today)) {
+      sources.push({ kind: 'laravel', date: today, path: path.join(dir, n), legacy: true })
+    }
+  }
+  if (sources.length === 0) return { ok: false, error: 'No logs in that date range.' }
+
+  const owner = logsWindow || setupWindow || null
+  const stamp = (from && to) ? (from === to ? from : `${from}_to_${to}`) : today
+  const result = await dialog.showSaveDialog(owner, {
+    title: 'Save Server Logs',
+    defaultPath: `MealDistributionApp-logs-${stamp}.txt`,
+    filters: [{ name: 'Text', extensions: ['txt', 'log'] }],
+  })
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true }
+
+  // Sort by date ascending, then server-before-laravel within a day so the
+  // process events come before the app events that happened during that day.
+  sources.sort((a, b) => a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind))
+
+  const out = fs.createWriteStream(result.filePath, { encoding: 'utf8' })
+  for (const f of sources) {
+    const label = f.legacy ? `${f.kind} (legacy single-file)` : `${f.kind} ${f.date}`
+    out.write(`\n========== ${label} ==========\n`)
+    out.write(fs.readFileSync(f.path, 'utf8'))
+  }
+  await new Promise(r => out.end(r))
+  return { ok: true, path: result.filePath, count: sources.length }
+})
 
 // ---------- Admin window (loads admin/dist via file://) ----------
 function openAdminWindow() {

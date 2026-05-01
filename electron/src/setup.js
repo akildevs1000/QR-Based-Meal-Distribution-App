@@ -26,6 +26,10 @@ function writeEnv(backendDir, values) {
     APP_DEBUG: 'false',
     APP_TIMEZONE: 'Asia/Dubai',
     APP_URL: values.app_url || 'http://localhost:8000',
+    // Daily rotation prevents storage/logs/laravel.log from growing forever.
+    // Files become storage/logs/laravel-YYYY-MM-DD.log and we keep 14 days.
+    LOG_CHANNEL: 'daily',
+    LOG_DAILY_DAYS: '14',
     DB_CONNECTION: 'pgsql',
     DB_HOST: values.db_host,
     DB_PORT: values.db_port || '5432',

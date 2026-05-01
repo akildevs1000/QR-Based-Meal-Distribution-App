@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld('logsApi', {
   restart: () => ipcRenderer.invoke('server:restart'),
   openAdmin: () => ipcRenderer.invoke('server:open-admin'),
   openSetup: () => ipcRenderer.invoke('server:open-setup'),
+  availableLogDates: () => ipcRenderer.invoke('server:available-log-dates'),
+  downloadLogs: (range) => ipcRenderer.invoke('server:download-logs', range),
   onLine: (cb) => ipcRenderer.on('log:line', (_e, line) => cb(line)),
 })
