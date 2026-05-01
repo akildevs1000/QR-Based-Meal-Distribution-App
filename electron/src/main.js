@@ -10,7 +10,10 @@ const { FileLogger } = require('./file-logger')
 
 const SERVER_PORT = 8000
 const APP_NAME = 'Meal Distribution App'
-const APP_ICON = path.join(__dirname, '..', 'build', 'icon.png')
+// 48×48 favicon for in-window use (taskbar / title bar). The 1024×1024
+// build/icon.png is reserved for electron-builder to generate the installer
+// + .exe ICO; using it for BrowserWindow.icon scales poorly to 16/32px.
+const APP_ICON = path.join(__dirname, '..', 'build', 'favicon.png')
 
 let paths = null
 let phpServer = null
@@ -155,17 +158,28 @@ function openSetupWindow() {
 
 ipcMain.handle('setup:test-connection', async (_e, values) => {
   const { spawn } = require('node:child_process')
-  const code = `try { new PDO('pgsql:host=${escapePhp(values.db_host)};port=${escapePhp(values.db_port)};dbname=${escapePhp(values.db_database)}', '${escapePhp(values.db_username)}', '${escapePhp(values.db_password)}'); echo 'OK'; } catch (Throwable $e) { fwrite(STDERR, $e->getMessage()); exit(1); }`
-  return new Promise(resolve => {
+  // First try to connect to the target DB. If it doesn't exist yet but the
+  // credentials are valid (verified by connecting to the always-present
+  // `postgres` meta DB), report a friendly "will-be-created" status so the
+  // user knows it's safe to proceed.
+  const tryConnect = (db) => new Promise(resolve => {
+    const code = `try { new PDO('pgsql:host=${escapePhp(values.db_host)};port=${escapePhp(values.db_port)};dbname=${escapePhp(db)}', '${escapePhp(values.db_username)}', '${escapePhp(values.db_password)}'); echo 'OK'; } catch (Throwable $e) { fwrite(STDERR, $e->getMessage()); exit(1); }`
     const proc = spawn(paths.phpExe, ['-r', code], { windowsHide: true })
     let err = ''
     proc.stderr.on('data', d => { err += d.toString() })
-    proc.on('exit', code => {
-      if (code === 0) resolve({ ok: true })
-      else resolve({ ok: false, error: err.trim() || `exit ${code}` })
-    })
+    proc.on('exit', exit => resolve({ ok: exit === 0, error: err.trim() }))
     proc.on('error', e => resolve({ ok: false, error: e.message }))
   })
+
+  const target = await tryConnect(values.db_database)
+  if (target.ok) return { ok: true, message: 'Connected.' }
+
+  // Distinguish "DB missing" from "auth failed" by retrying against `postgres`.
+  const meta = await tryConnect('postgres')
+  if (meta.ok && /database .* does not exist/i.test(target.error)) {
+    return { ok: true, message: `Database "${values.db_database}" will be created on save.` }
+  }
+  return { ok: false, error: target.error || 'Connection failed.' }
 })
 
 ipcMain.handle('setup:save', async (_e, values) => {

@@ -101,7 +101,7 @@
   $('testBtn').addEventListener('click', async () => {
     setStatus('Testing connection…', 'info')
     const res = await window.setupApi.testConnection(collect())
-    if (res.ok) setStatus('Connection succeeded.', 'ok')
+    if (res.ok) setStatus(res.message || 'Connection succeeded.', 'ok')
     else setStatus('Connection failed: ' + res.error, 'err')
   })
 
