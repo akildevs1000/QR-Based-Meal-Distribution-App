@@ -98,6 +98,18 @@
     app_url: $('app_url').value.trim(),
   })
 
+  // Pre-fill the form with whatever's currently in .env (except the password,
+  // which the user has to retype every time for safety). Runs once on load.
+  ;(async () => {
+    const c = await window.setupApi.current()
+    if (!c) return
+    if (c.db_host)     $('db_host').value = c.db_host
+    if (c.db_port)     $('db_port').value = c.db_port
+    if (c.db_database) $('db_database').value = c.db_database
+    if (c.db_username) $('db_username').value = c.db_username
+    if (c.app_url)     $('app_url').value = c.app_url
+  })()
+
   $('testBtn').addEventListener('click', async () => {
     setStatus('Testing connection…', 'info')
     const res = await window.setupApi.testConnection(collect())

@@ -17,12 +17,38 @@ function isConfigured(backendDir) {
     && /DB_DATABASE=\w+/.test(env)
 }
 
+// Reads current values that we manage, so the Settings form can show what's
+// actually configured rather than placeholder defaults.
+function readCurrentConfig(backendDir) {
+  const envPath = path.join(backendDir, '.env')
+  if (!fs.existsSync(envPath)) return {}
+  const env = fs.readFileSync(envPath, 'utf8')
+  const grab = (key) => {
+    const m = env.match(new RegExp(`^${key}=(.*)$`, 'm'))
+    return m ? m[1].trim() : ''
+  }
+  return {
+    db_host: grab('DB_HOST') || '127.0.0.1',
+    db_port: grab('DB_PORT') || '5432',
+    db_database: grab('DB_DATABASE'),
+    db_username: grab('DB_USERNAME'),
+    db_password: '', // never read back the password — user retypes it
+    app_url: grab('APP_URL') || 'http://localhost:8000',
+  }
+}
+
+// Writes/updates the .env. Existing .env values for keys we DON'T manage
+// (CACHE_STORE, MAIL_HOST, REDIS_HOST, etc.) are preserved untouched.
+// Falls back to .env.example only for first-time installs where no .env exists.
 function writeEnv(backendDir, values) {
+  const envPath = path.join(backendDir, '.env')
   const examplePath = path.join(backendDir, '.env.example')
-  const targetPath = path.join(backendDir, '.env')
-  let template = fs.existsSync(examplePath)
-    ? fs.readFileSync(examplePath, 'utf8')
-    : ''
+  let template = ''
+  if (fs.existsSync(envPath)) {
+    template = fs.readFileSync(envPath, 'utf8')
+  } else if (fs.existsSync(examplePath)) {
+    template = fs.readFileSync(examplePath, 'utf8')
+  }
 
   const replacements = {
     APP_ENV: 'production',
@@ -44,11 +70,11 @@ function writeEnv(backendDir, values) {
     if (re.test(template)) {
       template = template.replace(re, `${key}=${val}`)
     } else {
-      template += `\n${key}=${val}`
+      template += (template.endsWith('\n') ? '' : '\n') + `${key}=${val}\n`
     }
   }
 
-  fs.writeFileSync(targetPath, template, 'utf8')
+  fs.writeFileSync(envPath, template, 'utf8')
 }
 
 function runArtisan(phpExe, backendDir, args, onLog) {
@@ -205,4 +231,4 @@ async function runFirstRunSetup({ phpExe, backendDir, values, onLog }) {
   onLog?.('[setup] complete')
 }
 
-module.exports = { isConfigured, runFirstRunSetup }
+module.exports = { isConfigured, runFirstRunSetup, readCurrentConfig }

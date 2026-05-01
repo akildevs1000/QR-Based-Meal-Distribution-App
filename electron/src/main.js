@@ -5,7 +5,7 @@ const os = require('node:os')
 
 const { resolvePaths } = require('./paths')
 const { PhpServer } = require('./php-server')
-const { isConfigured, runFirstRunSetup } = require('./setup')
+const { isConfigured, runFirstRunSetup, readCurrentConfig } = require('./setup')
 const { FileLogger } = require('./file-logger')
 
 const SERVER_PORT = 8000
@@ -156,6 +156,11 @@ function openSetupWindow() {
   setupWindow.on('closed', () => { setupWindow = null })
 }
 
+ipcMain.handle('setup:current-config', () => {
+  if (!paths) return {}
+  return readCurrentConfig(paths.backendDir)
+})
+
 ipcMain.handle('setup:test-connection', async (_e, values) => {
   const { spawn } = require('node:child_process')
   // First try to connect to the target DB. If it doesn't exist yet but the
@@ -199,6 +204,13 @@ ipcMain.handle('setup:save', async (_e, values) => {
     phpServer.start()
     queueWorker.start()
     scheduler.start()
+    // If admin is open, close it. Its localStorage token belongs to the OLD
+    // database and a reload here would race the not-yet-ready PHP server (the
+    // window would render blank). User can reopen Admin from the Logs window
+    // once the server status dot turns green.
+    if (adminWindow) {
+      adminWindow.close()
+    }
     openLogsWindow()
     return { ok: true }
   } catch (e) {
