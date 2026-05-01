@@ -109,6 +109,11 @@ ipcMain.handle('setup:test-connection', async (_e, values) => {
 
 ipcMain.handle('setup:save', async (_e, values) => {
   try {
+    // If the server is running (reconfigure case), stop it first so the new .env
+    // takes effect when we restart below.
+    if (phpServer?.isRunning() || phpServer?.isStarting()) {
+      await phpServer.stop()
+    }
     await runFirstRunSetup({
       phpExe: paths.phpExe,
       backendDir: paths.backendDir,
@@ -153,10 +158,14 @@ function openLogsWindow() {
 ipcMain.handle('logs:initial', () => phpServer?.getLogs() ?? [])
 ipcMain.handle('server:status', () => ({
   running: phpServer?.isRunning() ?? false,
+  starting: phpServer?.isStarting() ?? false,
   port: SERVER_PORT,
   ips: getLanIps(),
 }))
+ipcMain.handle('server:start', () => { phpServer?.start() })
+ipcMain.handle('server:stop', async () => { await phpServer?.stop() })
 ipcMain.handle('server:restart', async () => { await phpServer?.restart() })
+ipcMain.handle('server:open-setup', () => openSetupWindow())
 ipcMain.handle('server:open-admin', () => openAdminWindow())
 
 // ---------- Admin window (loads admin/dist via file://) ----------
