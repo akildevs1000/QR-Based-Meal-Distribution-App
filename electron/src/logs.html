@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>QR Meal Server</title>
+<title>Meal Distribution App</title>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #0f172a; color: #e2e8f0;
@@ -29,6 +29,12 @@
   header button.ghost   { background: transparent; }
   header button:hover { filter: brightness(1.15); }
   header button:disabled { opacity: 0.5; cursor: not-allowed; }
+  header input[type="search"] {
+    background: #0b1220; border: 1px solid #1e293b; border-radius: 4px;
+    color: #e2e8f0; font: inherit; padding: 5px 10px; width: 220px;
+  }
+  header input[type="search"]:focus { outline: none; border-color: #2563eb; }
+  pre .hl { background: #facc15; color: #0f172a; border-radius: 2px; }
   pre {
     margin: 0; padding: 12px 14px; height: calc(100% - 50px); overflow: auto;
     font: 12px/1.6 "Cascadia Code", Consolas, "Courier New", monospace;
@@ -49,6 +55,7 @@
     <button id="restartBtn">Restart</button>
     <button id="openAdminBtn" class="primary">Open Admin</button>
     <button id="settingsBtn" class="ghost" title="Database settings">Settings</button>
+    <input type="search" id="searchInput" placeholder="Search logs… (Ctrl+F)" />
     <span class="urls" id="urls"></span>
   </header>
   <pre id="log"></pre>
@@ -62,6 +69,55 @@
   const restartBtn = document.getElementById('restartBtn')
   const openAdminBtn = document.getElementById('openAdminBtn')
   const settingsBtn = document.getElementById('settingsBtn')
+  const searchInput = document.getElementById('searchInput')
+
+  // Apply current search filter to a single row — hides it if the query is set
+  // and the row doesn't match. Also wraps matches in a <mark>-style span.
+  const applyFilterToRow = (div) => {
+    const q = searchInput.value.trim().toLowerCase()
+    if (!q) {
+      div.hidden = false
+      // Strip any previous highlights.
+      div.querySelectorAll('.hl').forEach(el => {
+        const t = document.createTextNode(el.textContent)
+        el.replaceWith(t)
+      })
+      return
+    }
+    const text = div.textContent.toLowerCase()
+    if (!text.includes(q)) { div.hidden = true; return }
+    div.hidden = false
+    // Re-highlight: walk children and rewrite text nodes containing matches.
+    div.querySelectorAll('.hl').forEach(el => {
+      const t = document.createTextNode(el.textContent)
+      el.replaceWith(t)
+    })
+    highlightInNode(div, q)
+  }
+
+  const highlightInNode = (root, q) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null)
+    const nodes = []
+    while (walker.nextNode()) nodes.push(walker.currentNode)
+    for (const node of nodes) {
+      const lower = node.textContent.toLowerCase()
+      let i = lower.indexOf(q)
+      if (i === -1) continue
+      const frag = document.createDocumentFragment()
+      let last = 0
+      while (i !== -1) {
+        if (i > last) frag.appendChild(document.createTextNode(node.textContent.slice(last, i)))
+        const mark = document.createElement('span')
+        mark.className = 'hl'
+        mark.textContent = node.textContent.slice(i, i + q.length)
+        frag.appendChild(mark)
+        last = i + q.length
+        i = lower.indexOf(q, last)
+      }
+      if (last < node.textContent.length) frag.appendChild(document.createTextNode(node.textContent.slice(last)))
+      node.replaceWith(frag)
+    }
+  }
 
   const append = (line) => {
     const div = document.createElement('div')
@@ -74,7 +130,9 @@
       const body = document.createElement('span')
       body.textContent = m[2]
       if (/error|fail|cannot/i.test(m[2])) body.className = 'err'
-      else if (/^•/.test(m[2]) || /Ready|Starting|Stopped|Restarting/i.test(m[2])) body.className = 'info'
+      // Anything emitted by the supervisor processes — `(server)`, `(worker)`,
+      // `(cron)` — is informational unless an error pattern matched above.
+      else if (/^•/.test(m[2]) || /^\(\w+\)/.test(m[2]) || /Ready|Starting|Stopped|Restarting/i.test(m[2])) body.className = 'info'
       div.appendChild(ts)
       div.appendChild(body)
     } else {
@@ -82,8 +140,26 @@
     }
     log.appendChild(div)
     while (log.childNodes.length > 2000) log.removeChild(log.firstChild)
-    log.scrollTop = log.scrollHeight
+    applyFilterToRow(div)
+    if (!div.hidden) log.scrollTop = log.scrollHeight
   }
+
+  searchInput.addEventListener('input', () => {
+    Array.from(log.children).forEach(applyFilterToRow)
+  })
+  // Ctrl+F → focus search.
+  document.addEventListener('keydown', (ev) => {
+    if (ev.ctrlKey && ev.key.toLowerCase() === 'f') {
+      ev.preventDefault()
+      searchInput.focus()
+      searchInput.select()
+    }
+    if (ev.key === 'Escape' && document.activeElement === searchInput) {
+      searchInput.value = ''
+      Array.from(log.children).forEach(applyFilterToRow)
+      searchInput.blur()
+    }
+  })
 
   async function refreshStatus() {
     const s = await window.logsApi.status()

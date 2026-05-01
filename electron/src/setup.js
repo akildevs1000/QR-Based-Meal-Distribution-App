@@ -24,6 +24,7 @@ function writeEnv(backendDir, values) {
   const replacements = {
     APP_ENV: 'production',
     APP_DEBUG: 'false',
+    APP_TIMEZONE: 'Asia/Dubai',
     APP_URL: values.app_url || 'http://localhost:8000',
     DB_CONNECTION: 'pgsql',
     DB_HOST: values.db_host,

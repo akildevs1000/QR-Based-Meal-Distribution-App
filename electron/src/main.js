@@ -8,10 +8,12 @@ const { PhpServer } = require('./php-server')
 const { isConfigured, runFirstRunSetup } = require('./setup')
 
 const SERVER_PORT = 8000
-const APP_NAME = 'QR Meal Server'
+const APP_NAME = 'Meal Distribution App'
 
 let paths = null
 let phpServer = null
+let queueWorker = null
+let scheduler = null
 let setupWindow = null
 let logsWindow = null
 let adminWindow = null
@@ -30,21 +32,59 @@ if (!gotLock) {
 
 function bootstrap() {
   app.whenReady().then(async () => {
-    if (process.platform === 'win32') app.setAppUserModelId('com.akilgroup.qrmealserver')
+    if (process.platform === 'win32') app.setAppUserModelId('com.akilgroup.mealdistributionapp')
 
     paths = resolvePaths()
 
     phpServer = new PhpServer({
+      tag: 'server',
       phpExe: paths.phpExe,
       backendDir: paths.backendDir,
       port: SERVER_PORT,
       host: '0.0.0.0',
     })
 
+    // Background queue worker — processes jobs from the `jobs` table
+    // (database queue driver). Runs independently of the HTTP server so
+    // future notifications, exports, or async work just works.
+    queueWorker = new PhpServer({
+      tag: 'worker',
+      phpExe: paths.phpExe,
+      backendDir: paths.backendDir,
+      args: [
+        'artisan', 'queue:work',
+        '--sleep=3',
+        '--tries=3',
+        '--backoff=10',
+        '--max-time=3600', // recycle the worker every hour to avoid memory creep
+      ],
+    })
+
+    // Background scheduler — runs Laravel's task scheduler in foreground,
+    // ticking every minute. Replaces the traditional `* * * * * artisan schedule:run`
+    // cron entry. Define schedules in routes/console.php (or Console/Kernel.php).
+    scheduler = new PhpServer({
+      tag: 'cron',
+      phpExe: paths.phpExe,
+      backendDir: paths.backendDir,
+      args: ['artisan', 'schedule:work'],
+    })
+
+    // Pipe worker + scheduler logs into the same stream the logs window reads.
+    const forwardLog = line => {
+      phpServer?.logs.push(line)
+      if (phpServer?.logs.length > 500) phpServer.logs.shift()
+      phpServer?.emit('log', line)
+    }
+    queueWorker.on('log', forwardLog)
+    scheduler.on('log', forwardLog)
+
     if (!isConfigured(paths.backendDir)) {
       openSetupWindow()
     } else {
       phpServer.start()
+      queueWorker.start()
+      scheduler.start()
       openLogsWindow()
     }
   })
@@ -57,7 +97,11 @@ function bootstrap() {
     if (isQuitting) return
     event.preventDefault()
     isQuitting = true
-    if (phpServer) await phpServer.stop()
+    await Promise.all([
+      phpServer ? phpServer.stop() : Promise.resolve(),
+      queueWorker ? queueWorker.stop() : Promise.resolve(),
+      scheduler ? scheduler.stop() : Promise.resolve(),
+    ])
     app.exit(0)
   })
 }
@@ -109,11 +153,11 @@ ipcMain.handle('setup:test-connection', async (_e, values) => {
 
 ipcMain.handle('setup:save', async (_e, values) => {
   try {
-    // If the server is running (reconfigure case), stop it first so the new .env
+    // If anything's running (reconfigure case), stop it first so the new .env
     // takes effect when we restart below.
-    if (phpServer?.isRunning() || phpServer?.isStarting()) {
-      await phpServer.stop()
-    }
+    if (phpServer?.isRunning() || phpServer?.isStarting()) await phpServer.stop()
+    if (queueWorker?.isRunning() || queueWorker?.isStarting()) await queueWorker.stop()
+    if (scheduler?.isRunning() || scheduler?.isStarting()) await scheduler.stop()
     await runFirstRunSetup({
       phpExe: paths.phpExe,
       backendDir: paths.backendDir,
@@ -122,6 +166,8 @@ ipcMain.handle('setup:save', async (_e, values) => {
     })
     if (setupWindow) setupWindow.close()
     phpServer.start()
+    queueWorker.start()
+    scheduler.start()
     openLogsWindow()
     return { ok: true }
   } catch (e) {
@@ -162,9 +208,17 @@ ipcMain.handle('server:status', () => ({
   port: SERVER_PORT,
   ips: getLanIps(),
 }))
-ipcMain.handle('server:start', () => { phpServer?.start() })
-ipcMain.handle('server:stop', async () => { await phpServer?.stop() })
-ipcMain.handle('server:restart', async () => { await phpServer?.restart() })
+ipcMain.handle('server:start', () => {
+  phpServer?.start()
+  queueWorker?.start()
+  scheduler?.start()
+})
+ipcMain.handle('server:stop', async () => {
+  await Promise.all([phpServer?.stop(), queueWorker?.stop(), scheduler?.stop()])
+})
+ipcMain.handle('server:restart', async () => {
+  await Promise.all([phpServer?.restart(), queueWorker?.restart(), scheduler?.restart()])
+})
 ipcMain.handle('server:open-setup', () => openSetupWindow())
 ipcMain.handle('server:open-admin', () => openAdminWindow())
 
