@@ -12,14 +12,18 @@ function resolvePaths() {
   const isDev = !app.isPackaged
 
   if (isDev) {
-    // In dev we run against the developer's installed PHP and the repo's backend folder.
+    // In dev we run against the bundled PHP at electron/resources/php/php.exe
+    // (same binary that ships to customers — guaranteed-consistent VC version)
+    // and the repo's backend folder. PHP_BIN env var still wins if set, so a
+    // dev can override with a different PHP install for testing.
     const repoRoot = path.resolve(__dirname, '..', '..')
+    const bundledDevPhp = path.join(__dirname, '..', 'resources', 'php', 'php.exe')
     return {
       isDev: true,
-      phpExe: process.env.PHP_BIN || 'php', // assume on PATH
+      phpExe: process.env.PHP_BIN
+        || (fs.existsSync(bundledDevPhp) ? bundledDevPhp : 'php'),
       backendDir: path.join(repoRoot, 'backend'),
       adminDistDir: path.join(repoRoot, 'admin', 'dist'),
-      // userData for storing first-run state during dev
       stateDir: app.getPath('userData'),
     }
   }

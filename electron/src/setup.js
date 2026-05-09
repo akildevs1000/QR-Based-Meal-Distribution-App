@@ -32,7 +32,10 @@ function readCurrentConfig(backendDir) {
     db_port: grab('DB_PORT') || '5432',
     db_database: grab('DB_DATABASE'),
     db_username: grab('DB_USERNAME'),
-    db_password: '', // never read back the password — user retypes it
+    // Pre-fill the password from .env. It's already stored plain-text on disk
+    // there (Laravel's normal config behavior); showing it in the Settings
+    // form doesn't expose anything that wasn't already visible to the customer.
+    db_password: grab('DB_PASSWORD'),
     app_url: grab('APP_URL') || 'http://localhost:8000',
   }
 }
@@ -180,10 +183,23 @@ async function countRows({ phpExe, values, table }) {
 }
 
 // Creates the single admin user only if no row with that email exists yet.
-// Won't clobber an existing admin's password if they're connecting to an
-// already-set-up database.
+// Bypasses mass-assignment and casts — we Hash::make() explicitly and assign
+// every column directly so the user is correct regardless of how the model
+// is configured.
 async function createAdminUser({ phpExe, backendDir, onLog }) {
-  const code = `if (\\App\\Models\\User::where('email', 'admin@example.com')->exists()) { echo 'EXISTS'; } else { \\App\\Models\\User::create(['name' => 'Admin', 'email' => 'admin@example.com', 'password' => 'password', 'role' => 'admin', 'active' => true]); echo 'CREATED'; }`
+  const code = [
+    `$u = \\App\\Models\\User::where('email', 'admin@example.com')->first();`,
+    `if ($u) { echo 'EXISTS'; } else {`,
+    `$u = new \\App\\Models\\User();`,
+    `$u->name = 'Admin';`,
+    `$u->email = 'admin@example.com';`,
+    `$u->password = \\Illuminate\\Support\\Facades\\Hash::make('password');`,
+    `$u->role = 'admin';`,
+    `$u->active = true;`,
+    `$u->save();`,
+    `echo 'CREATED';`,
+    `}`,
+  ].join(' ')
   let captured = ''
   await runArtisan(phpExe, backendDir, ['tinker', '--execute=' + code], (line) => {
     captured += line
