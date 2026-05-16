@@ -23,11 +23,14 @@ class Complaint extends Model
         'status',
         'date_resolved',
         'remarks',
+        'supplier_response',
+        'supplier_responded_at',
     ];
 
     protected $casts = [
-        'date_logged' => 'date',
-        'date_resolved' => 'date',
+        'date_logged'           => 'date',
+        'date_resolved'         => 'date',
+        'supplier_responded_at' => 'datetime',
     ];
 
     public function site(): BelongsTo

@@ -9,10 +9,10 @@ import Select from '../components/Select'
 import RowMenu from '../components/RowMenu'
 
 const inputCls =
-  'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all'
 
 const filterCls =
-  'bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
 
 const STATUSES = [
   { value: 'submitted', label: 'Submitted', cls: 'bg-blue-900/40 text-blue-400 border-blue-800/50' },
@@ -76,7 +76,7 @@ export default function FoodRequests() {
           <h1 className="font-h1 text-h1 text-slate-100">Food Requests</h1>
           <p className="font-body-md text-body-md text-slate-400 mt-1">Site meal requests per day, by supplier and meal category.</p>
         </div>
-        <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-colors">
+        <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 whitespace-nowrap transition-colors">
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>New request
         </button>
       </header>
@@ -173,7 +173,7 @@ export default function FoodRequests() {
 
       {editing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-lg space-y-md max-h-[90vh] overflow-y-auto">
+          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-lg space-y-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? 'Edit' : 'New'} Food Request</h2>
             <div className="grid grid-cols-2 gap-md">
               <div>
@@ -251,8 +251,8 @@ export default function FoodRequests() {
               <textarea rows={2} value={editing.remarks || ''} onChange={e => setEditing({ ...editing, remarks: e.target.value })} className={`${inputCls} resize-y`} />
             </div>
             <div className="flex justify-end gap-sm pt-sm">
-              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-              <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+              <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
                 {save.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>

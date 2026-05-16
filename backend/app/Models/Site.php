@@ -46,6 +46,11 @@ class Site extends Model
         return $this->hasMany(SupplierMealAssignment::class);
     }
 
+    public function mealQuotas(): HasMany
+    {
+        return $this->hasMany(SiteMealQuota::class);
+    }
+
     public function distributionAssignments(): HasMany
     {
         return $this->hasMany(DistributionAssignment::class);

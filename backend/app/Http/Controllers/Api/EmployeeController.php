@@ -18,7 +18,9 @@ class EmployeeController extends Controller
         if ($s = $request->string('q')->toString()) {
             $q->where(function ($w) use ($s) {
                 $w->where('employee_code', 'like', "%{$s}%")
-                  ->orWhere('name', 'like', "%{$s}%");
+                  ->orWhere('name', 'like', "%{$s}%")
+                  ->orWhere('employee_ref_id', 'like', "%{$s}%")
+                  ->orWhere('company', 'like', "%{$s}%");
             });
         }
         if ($siteId = $request->integer('site_id')) {
@@ -34,11 +36,14 @@ class EmployeeController extends Controller
     {
         $data = $request->validate([
             'employee_code'    => ['required', 'string', 'max:64', 'unique:employees,employee_code'],
+            'employee_ref_id'  => ['nullable', 'string', 'max:64'],
+            'company'          => ['nullable', 'string', 'max:191'],
             'name'             => ['required', 'string', 'max:191'],
             'designation'      => ['nullable', 'string', 'max:191'],
             'meal_eligibility' => ['sometimes', 'boolean'],
             'duty_status'      => ['sometimes', 'string', Rule::in(self::DUTY_STATUSES)],
             'date_of_joining'  => ['nullable', 'date'],
+            'expiry_date'      => ['nullable', 'date'],
             'grade'            => ['nullable', 'string', 'max:64'],
             'site_id'          => ['nullable', 'integer', 'exists:sites,id'],
             'profile_picture'  => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
@@ -61,11 +66,14 @@ class EmployeeController extends Controller
     {
         $data = $request->validate([
             'employee_code'    => ['sometimes', 'string', 'max:64', Rule::unique('employees', 'employee_code')->ignore($employee->id)],
+            'employee_ref_id'  => ['sometimes', 'nullable', 'string', 'max:64'],
+            'company'          => ['sometimes', 'nullable', 'string', 'max:191'],
             'name'             => ['sometimes', 'string', 'max:191'],
             'designation'      => ['sometimes', 'nullable', 'string', 'max:191'],
             'meal_eligibility' => ['sometimes', 'boolean'],
             'duty_status'      => ['sometimes', 'string', Rule::in(self::DUTY_STATUSES)],
             'date_of_joining'  => ['sometimes', 'nullable', 'date'],
+            'expiry_date'      => ['sometimes', 'nullable', 'date'],
             'grade'            => ['sometimes', 'nullable', 'string', 'max:64'],
             'site_id'          => ['sometimes', 'nullable', 'integer', 'exists:sites,id'],
             'profile_picture'  => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],

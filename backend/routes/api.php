@@ -7,8 +7,10 @@ use App\Http\Controllers\Api\DeliveryNoteController;
 use App\Http\Controllers\Api\DistributionAssignmentController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\FoodRequestController;
+use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MealCategoryController;
+use App\Http\Controllers\Api\MealRemarkController;
 use App\Http\Controllers\Api\MealRuleController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ReportController;
@@ -18,6 +20,8 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SiteController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SupplierMealAssignmentController;
+use App\Http\Controllers\Api\SupplierPortalController;
+use App\Http\Controllers\Api\SupplierUserController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -70,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/settings/logo', [SettingsController::class, 'deleteLogo'])->middleware('permission:settings.update');
 
     // Employees
+    Route::post('/employees/import',   [ImportController::class, 'employees'])->middleware('permission:employees.import');
     Route::get('/employees',           [EmployeeController::class, 'index'])->middleware('permission:employees.view');
     Route::get('/employees/{employee}',[EmployeeController::class, 'show'])->middleware('permission:employees.view');
     Route::post('/employees',          [EmployeeController::class, 'store'])->middleware('permission:employees.create');
@@ -78,6 +83,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/employees/{employee}',[EmployeeController::class, 'destroy'])->middleware('permission:employees.delete');
 
     // Sites
+    Route::get('/dashboard/quotas', [SiteController::class, 'quotasSummary'])->middleware('permission:dashboard.view');
     Route::get('/sites',         [SiteController::class, 'index'])->middleware('permission:sites.view');
     Route::get('/sites/{site}',  [SiteController::class, 'show'])->middleware('permission:sites.view');
     Route::post('/sites',        [SiteController::class, 'store'])->middleware('permission:sites.create');
@@ -136,6 +142,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/suppliers/{supplier}/documents',              [SupplierController::class, 'uploadDocument'])->middleware('permission:suppliers.update');
     Route::delete('/suppliers/{supplier}/documents/{document}', [SupplierController::class, 'deleteDocument'])->middleware('permission:suppliers.update');
 
+    // Supplier login users (admin-managed; bundled under suppliers.update)
+    Route::get('/suppliers/{supplier}/users',                       [SupplierUserController::class, 'index'])->middleware('permission:suppliers.view');
+    Route::post('/suppliers/{supplier}/users',                      [SupplierUserController::class, 'store'])->middleware('permission:suppliers.update');
+    Route::put('/supplier-users/{supplierUser}',                    [SupplierUserController::class, 'update'])->middleware('permission:suppliers.update');
+    Route::patch('/supplier-users/{supplierUser}',                  [SupplierUserController::class, 'update'])->middleware('permission:suppliers.update');
+    Route::post('/supplier-users/{supplierUser}/reset-password',    [SupplierUserController::class, 'resetPassword'])->middleware('permission:suppliers.update');
+    Route::delete('/supplier-users/{supplierUser}',                 [SupplierUserController::class, 'destroy'])->middleware('permission:suppliers.update');
+
     // Supplier Meal Assignments (bundled under suppliers permissions)
     Route::get('/supplier-meal-assignments',                            [SupplierMealAssignmentController::class, 'index'])->middleware('permission:suppliers.view');
     Route::get('/supplier-meal-assignments/{supplierMealAssignment}',   [SupplierMealAssignmentController::class, 'show'])->middleware('permission:suppliers.view');
@@ -168,6 +182,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/delivery-notes/{deliveryNote}', [DeliveryNoteController::class, 'update'])->middleware('permission:delivery-notes.update');
     Route::delete('/delivery-notes/{deliveryNote}',[DeliveryNoteController::class, 'destroy'])->middleware('permission:delivery-notes.delete');
 
+    // Meal Remarks (admin view + admin posts as "Timekeeper")
+    Route::get('/meal-remarks',                 [MealRemarkController::class, 'index'])->middleware('permission:meal-remarks.view');
+    Route::post('/meal-remarks',                [MealRemarkController::class, 'store'])->middleware('permission:meal-remarks.create');
+    Route::delete('/meal-remarks/{mealRemark}', [MealRemarkController::class, 'destroy'])->middleware('permission:meal-remarks.delete');
+
     // Complaints
     Route::get('/complaints',              [ComplaintController::class, 'index'])->middleware('permission:complaints.view');
     Route::get('/complaints/{complaint}',  [ComplaintController::class, 'show'])->middleware('permission:complaints.view');
@@ -183,4 +202,25 @@ Route::middleware('auth:sanctum')->group(function () {
     // Reports
     Route::get('/reports',         [ReportController::class, 'catalog'])->middleware('permission:reports.view');
     Route::get('/reports/{key}',   [ReportController::class, 'run'])->middleware('permission:reports.view');
+});
+
+// Supplier portal (supplier-typed tokens only)
+Route::middleware(['auth:sanctum', 'supplier.user'])->prefix('supplier')->group(function () {
+    Route::get('/dashboard',       [SupplierPortalController::class, 'dashboard']);
+    Route::get('/food-requests',   [SupplierPortalController::class, 'foodRequests']);
+    Route::get('/delivery-notes',  [SupplierPortalController::class, 'deliveryNotes']);
+    Route::get('/complaints',      [SupplierPortalController::class, 'complaints']);
+    Route::get('/assignments',     [SupplierPortalController::class, 'assignments']);
+    Route::get('/sites',           [SupplierPortalController::class, 'sites']);
+    Route::get('/meal-rules',      [SupplierPortalController::class, 'mealRules']);
+    Route::get('/profile',         [SupplierPortalController::class, 'profile']);
+    Route::patch('/profile',       [SupplierPortalController::class, 'updateProfile']);
+    Route::post('/password',       [SupplierPortalController::class, 'updatePassword']);
+
+    // Write actions
+    Route::post('/delivery-notes/{deliveryNote}/confirm', [SupplierPortalController::class, 'confirmDelivery']);
+    Route::post('/complaints/{complaint}/respond',        [SupplierPortalController::class, 'respondToComplaint']);
+    Route::get('/meal-remarks',                            [SupplierPortalController::class, 'mealRemarks']);
+    Route::post('/meal-remarks',                           [SupplierPortalController::class, 'storeMealRemark']);
+    Route::delete('/meal-remarks/{mealRemark}',            [SupplierPortalController::class, 'destroyMealRemark']);
 });

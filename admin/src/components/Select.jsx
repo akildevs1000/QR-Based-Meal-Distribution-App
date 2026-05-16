@@ -89,9 +89,9 @@ export default function Select({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={[
-          'w-full flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-left transition-all',
-          'focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none',
-          'hover:border-outline-variant',
+          'w-full flex items-center gap-2 bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-left transition-all',
+          'focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none',
+          'hover:bg-surface-container-high/70 hover:border-outline-variant/50',
           disabled ? 'opacity-60 cursor-not-allowed' : '',
         ].join(' ')}
       >
@@ -128,7 +128,7 @@ export default function Select({
                   value={query}
                   onChange={(e) => { setQuery(e.target.value); setActiveIdx(0) }}
                   placeholder="Search…"
-                  className="w-full bg-surface-container-lowest border border-outline-variant/50 rounded pl-8 pr-2 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                  className="w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg pl-8 pr-2 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
                 />
               </div>
             </div>

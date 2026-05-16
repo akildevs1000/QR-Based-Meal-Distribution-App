@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -33,6 +34,8 @@ export default function DateRangePicker({
 }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef(null)
+  const popoverRef = useRef(null)
+  const [coords, setCoords] = useState(null)
   const [tempStart, setTempStart] = useState(null)
   const [hover, setHover] = useState(null)
   const [view, setView] = useState(() => {
@@ -43,7 +46,11 @@ export default function DateRangePicker({
 
   useEffect(() => {
     if (!open) return
-    const onDoc = (ev) => { if (wrapRef.current && !wrapRef.current.contains(ev.target)) setOpen(false) }
+    const onDoc = (ev) => {
+      if (wrapRef.current && wrapRef.current.contains(ev.target)) return
+      if (popoverRef.current && popoverRef.current.contains(ev.target)) return
+      setOpen(false)
+    }
     const onKey = (ev) => { if (ev.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
@@ -52,6 +59,32 @@ export default function DateRangePicker({
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
+
+  useLayoutEffect(() => {
+    if (!open) { setCoords(null); return }
+    const POPOVER_W = 528 // ~ two 240px calendars + padding + gap
+    const update = () => {
+      const r = wrapRef.current?.getBoundingClientRect()
+      if (!r) return
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      let left = align === 'right' ? r.right - POPOVER_W : r.left
+      left = Math.max(8, Math.min(left, vw - POPOVER_W - 8))
+      const popH = popoverRef.current?.offsetHeight || 360
+      const spaceBelow = vh - r.bottom
+      const top = spaceBelow < popH + 8 && r.top > popH + 8
+        ? r.top - popH - 4
+        : r.bottom + 4
+      setCoords({ top, left, width: POPOVER_W })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open, align])
 
   useEffect(() => {
     if (!open) { setTempStart(null); setHover(null); return }
@@ -127,8 +160,6 @@ export default function DateRangePicker({
     setOpen(false)
   }
 
-  const popoverPos = align === 'right' ? 'right-0' : 'left-0'
-
   return (
     <div ref={wrapRef} className={`relative ${className}`}>
       <button
@@ -137,7 +168,7 @@ export default function DateRangePicker({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={[
-          'w-full flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-left transition-all',
+          'w-full flex items-center gap-2 bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-left transition-all',
           'focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none',
           'hover:border-outline-variant',
           disabled ? 'opacity-60 cursor-not-allowed' : '',
@@ -161,8 +192,12 @@ export default function DateRangePicker({
         </button>
       )}
 
-      {open && !disabled && (
-        <div className={`absolute z-30 mt-1 ${popoverPos} bg-surface-container-low border border-outline-variant/50 rounded-lg shadow-xl`}>
+      {open && !disabled && coords && createPortal(
+        <div
+          ref={popoverRef}
+          style={{ position: 'fixed', top: coords.top, left: coords.left, width: coords.width, zIndex: 1000 }}
+          className="bg-surface-container-low border border-outline-variant/50 rounded-lg shadow-xl"
+        >
           <div className="p-md">
             <div className="flex gap-md">
               {[
@@ -233,7 +268,8 @@ export default function DateRangePicker({
               <button type="button" onClick={clear} className="text-slate-400 hover:text-slate-200 transition-colors">Clear</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

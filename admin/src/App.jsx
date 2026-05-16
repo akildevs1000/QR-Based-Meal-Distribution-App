@@ -8,13 +8,22 @@ import MealCategories from './pages/MealCategories'
 import Suppliers from './pages/Suppliers'
 import FoodRequests from './pages/FoodRequests'
 import Complaints from './pages/Complaints'
+import MealRemarks from './pages/MealRemarks'
 import DeliveryNotes from './pages/DeliveryNotes'
 import Users from './pages/Users'
 import Roles from './pages/Roles'
 import Logs from './pages/Logs'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import SupplierPortal from './pages/SupplierPortal'
+import SupplierFoodRequests from './pages/SupplierFoodRequests'
+import SupplierDeliveryNotes from './pages/SupplierDeliveryNotes'
+import SupplierComplaints from './pages/SupplierComplaints'
+import SupplierAssignments from './pages/SupplierAssignments'
+import SupplierRemarks from './pages/SupplierRemarks'
+import SupplierProfile from './pages/SupplierProfile'
 import Layout from './components/Layout'
+import SupplierLayout from './components/SupplierLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import RequirePermission from './components/RequirePermission'
 
@@ -26,6 +35,18 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
+      {/* Supplier portal (supplier-typed tokens) */}
+      <Route path="/supplier" element={<SupplierLayout />}>
+        <Route index element={<SupplierPortal />} />
+        <Route path="food-requests" element={<SupplierFoodRequests />} />
+        <Route path="delivery-notes" element={<SupplierDeliveryNotes />} />
+        <Route path="complaints" element={<SupplierComplaints />} />
+        <Route path="assignments" element={<SupplierAssignments />} />
+        <Route path="remarks" element={<SupplierRemarks />} />
+        <Route path="profile" element={<SupplierProfile />} />
+      </Route>
+
       <Route
         element={
           <ProtectedRoute>
@@ -41,6 +62,7 @@ export default function App() {
         <Route path="/meal-categories" element={gated('meal-categories.view', <MealCategories />)} />
         <Route path="/food-requests" element={gated('food-requests.view', <FoodRequests />)} />
         <Route path="/complaints" element={gated('complaints.view', <Complaints />)} />
+        <Route path="/meal-remarks" element={gated('meal-remarks.view', <MealRemarks />)} />
         <Route path="/delivery-notes" element={gated('delivery-notes.view', <DeliveryNotes />)} />
         <Route path="/users" element={gated('users.view', <Users />)} />
         <Route path="/roles" element={gated('roles.view', <Roles />)} />

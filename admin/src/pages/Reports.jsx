@@ -173,7 +173,7 @@ export default function Reports() {
         <button
           onClick={() => run('json')}
           disabled={!canRun || running === 'json'}
-          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 whitespace-nowrap transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{running === 'json' ? 'sync' : 'play_arrow'}</span>
           {running === 'json' ? 'Submitting…' : 'Submit'}

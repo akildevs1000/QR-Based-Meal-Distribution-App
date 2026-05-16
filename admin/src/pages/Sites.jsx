@@ -9,9 +9,10 @@ import Pagination from "../components/Pagination"
 import Select from "../components/Select"
 import RowMenu from "../components/RowMenu"
 import Checkbox from "../components/Checkbox"
+import DatePicker from "../components/DatePicker"
 
 const inputCls =
-  "w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all"
+  "w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all"
 
 const SITE_TYPES = [
   { value: 'camp', label: 'Camp' },
@@ -38,21 +39,32 @@ export default function Sites() {
   const [page, setPage] = useState(1)
   useEffect(() => { setPage(1) }, [q])
   const { data, isLoading } = useSites({ q, page })
+  const { data: mealRulesData } = useMealRules({ per_page: 100 })
   const save = useSaveSite()
   const del = useDeleteSite()
   const [editing, setEditing] = useState(null)
   const [viewingId, setViewingId] = useState(null)
 
+  const activeMealRules = (mealRulesData?.data ?? []).filter(r => r.active !== false)
+
+  const quotasFromRow = (row) => {
+    const map = {}
+    for (const q of row?.meal_quotas ?? []) map[q.meal_rule_id] = q.quantity
+    return map
+  }
+
   const openNew = () => setEditing({
     site_code: '', name: '', type: 'site', status: 'active',
     description: '', start_date: '', end_date: '',
     pin: '', clear_pin: false, active: true,
+    meal_quotas: {},
   })
   const openEdit = (row) => setEditing({
     ...row,
     pin: '', clear_pin: false,
     start_date: row.start_date ? String(row.start_date).slice(0, 10) : '',
     end_date: row.end_date ? String(row.end_date).slice(0, 10) : '',
+    meal_quotas: quotasFromRow(row),
   })
   const close = () => setEditing(null)
 
@@ -63,6 +75,12 @@ export default function Sites() {
     if (!payload.clear_pin) delete payload.clear_pin
     if (!payload.start_date) payload.start_date = null
     if (!payload.end_date) payload.end_date = null
+    payload.meal_quotas = Object.entries(editing.meal_quotas || {})
+      .map(([meal_rule_id, quantity]) => ({
+        meal_rule_id: Number(meal_rule_id),
+        quantity: Number(quantity) || 0,
+      }))
+      .filter(q => q.quantity > 0)
     await save.mutateAsync(payload)
     close()
   }
@@ -73,16 +91,16 @@ export default function Sites() {
     <>
       <header className="flex justify-between items-end mb-lg">
         <div>
-          <h1 className="font-h1 text-h1 text-slate-100">Distribution Points</h1>
+          <h1 className="font-h1 text-h1 text-slate-100">Sites</h1>
           <p className="font-body-md text-body-md text-slate-400 mt-1">Manage camps, sites and projects with their meal assignments.</p>
         </div>
         <div className="flex gap-sm">
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" style={{ fontSize: 18 }}>search</span>
             <input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/50 rounded pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64" />
+              className="bg-surface-container-high/50 border border-outline-variant/30 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64" />
           </div>
-          <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 transition-colors">
+          <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 transition-colors">
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>Add point
           </button>
         </div>
@@ -105,7 +123,7 @@ export default function Sites() {
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
             {isLoading && <tr><td colSpan="9" className="p-6 text-center text-slate-500">Loading…</td></tr>}
-            {!isLoading && rows.length === 0 && <tr><td colSpan="9" className="p-6 text-center text-slate-500">No distribution points.</td></tr>}
+            {!isLoading && rows.length === 0 && <tr><td colSpan="9" className="p-6 text-center text-slate-500">No sites.</td></tr>}
             {rows.map((s) => (
               <tr key={s.id} className="hover:bg-surface-container-highest/10 transition-colors">
                 <td className="px-4 py-3 font-mono text-slate-300">{s.site_code}</td>
@@ -140,9 +158,9 @@ export default function Sites() {
 
       {editing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-lg space-y-md max-h-[90vh] overflow-y-auto">
+          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-lg space-y-md max-h-[90vh] overflow-y-auto">
             <div>
-              <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? 'Edit' : 'New'} Distribution Point</h2>
+              <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? 'Edit' : 'New'} Site</h2>
               <p className="text-body-md text-slate-400 mt-1">Code + type identify this location across transactions.</p>
             </div>
             <div className="grid grid-cols-2 gap-md">
@@ -176,16 +194,50 @@ export default function Sites() {
             <div className="grid grid-cols-2 gap-md">
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">Start date</label>
-                <input type="date" value={editing.start_date || ''} onChange={e => setEditing({ ...editing, start_date: e.target.value })} className={inputCls} />
+                <DatePicker value={editing.start_date || ''} onChange={(v) => setEditing({ ...editing, start_date: v })} placeholder="Pick a date" />
               </div>
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">End date</label>
-                <input type="date" value={editing.end_date || ''} onChange={e => setEditing({ ...editing, end_date: e.target.value })} className={inputCls} />
+                <DatePicker value={editing.end_date || ''} onChange={(v) => setEditing({ ...editing, end_date: v })} placeholder="Pick a date" />
               </div>
             </div>
             <div>
               <label className="block text-label-md text-slate-300 mb-1.5">Description</label>
               <textarea rows={2} value={editing.description || ''} onChange={e => setEditing({ ...editing, description: e.target.value })} className={`${inputCls} resize-y`} placeholder="Temporary camp" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="material-symbols-outlined text-slate-500" style={{ fontSize: 16 }}>restaurant</span>
+                <label className="text-label-md text-slate-300">Daily meal quantities</label>
+                <span className="text-[11px] text-slate-500">— meals to prepare per day</span>
+              </div>
+              {activeMealRules.length === 0 ? (
+                <div className="text-xs text-slate-500 italic px-3 py-2 border border-outline-variant/40 rounded">
+                  No active meal rules. Create meal rules first to set quotas.
+                </div>
+              ) : (
+                <div className={`grid gap-md ${activeMealRules.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {activeMealRules.map(rule => (
+                    <div key={rule.id}>
+                      <label className="block text-label-sm text-slate-400 mb-1 truncate" title={rule.name}>{rule.name}</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={editing.meal_quotas?.[rule.id] ?? ''}
+                        onChange={e => {
+                          const v = e.target.value.replace(/\D/g, '')
+                          const next = { ...(editing.meal_quotas || {}) }
+                          if (v === '') delete next[rule.id]
+                          else next[rule.id] = parseInt(v, 10) || 0
+                          setEditing({ ...editing, meal_quotas: next })
+                        }}
+                        placeholder="0"
+                        className={`${inputCls} font-mono`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="flex items-center justify-between text-label-md text-slate-300 mb-1.5">
@@ -207,8 +259,8 @@ export default function Sites() {
                 className={`${inputCls} font-mono tracking-widest disabled:opacity-40`} placeholder="••••" />
             </div>
             <div className="flex justify-end gap-sm pt-sm">
-              <button type="button" onClick={close} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-              <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+              <button type="button" onClick={close} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+              <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
                 {save.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>
@@ -248,7 +300,7 @@ function SiteDetailModal({ id, onClose, onEdit }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div onClick={e => e.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {isLoading || !site ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
           <>
             <div className="flex items-start justify-between mb-md">
@@ -271,6 +323,20 @@ function SiteDetailModal({ id, onClose, onEdit }) {
               <div><dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">Start</dt><dd className="text-slate-200 font-mono">{site.start_date ? String(site.start_date).slice(0, 10) : '—'}</dd></div>
               <div><dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">End</dt><dd className="text-slate-200 font-mono">{site.end_date ? String(site.end_date).slice(0, 10) : '—'}</dd></div>
             </dl>
+
+            {(site.meal_quotas ?? []).length > 0 && (
+              <section className="mb-lg">
+                <h3 className="text-label-sm text-slate-400 uppercase tracking-wider mb-sm">Daily meal quantities</h3>
+                <div className="flex flex-wrap gap-2">
+                  {site.meal_quotas.map(q => (
+                    <div key={q.id} className="inline-flex items-center gap-2 bg-surface-container-lowest/60 border border-outline-variant/40 rounded px-3 py-1.5">
+                      <span className="text-sm text-slate-200">{q.meal_rule?.name || '—'}</span>
+                      <span className="font-mono text-sm text-blue-400">{q.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="mb-lg">
               <div className="flex items-center justify-between mb-sm">
@@ -347,15 +413,15 @@ function SiteDetailModal({ id, onClose, onEdit }) {
             </section>
 
             <div className="flex justify-end gap-sm pt-lg mt-md border-t border-outline-variant/30">
-              <button onClick={onClose} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Close</button>
-              <button onClick={() => onEdit(site)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">Edit</button>
+              <button onClick={onClose} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Close</button>
+              <button onClick={() => onEdit(site)} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 transition-colors">Edit</button>
             </div>
           </>
         )}
 
         {newSup && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <form onSubmit={submitSup} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-md space-y-md">
+            <form onSubmit={submitSup} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-md space-y-md">
               <h3 className="text-h3 font-h3 text-slate-100">New Supplier Assignment</h3>
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">Supplier</label>
@@ -383,13 +449,13 @@ function SiteDetailModal({ id, onClose, onEdit }) {
                 />
               </div>
               <div className="grid grid-cols-2 gap-md">
-                <div><label className="block text-label-md text-slate-300 mb-1.5">Start</label><input type="date" required value={newSup.start_date} onChange={e => setNewSup({ ...newSup, start_date: e.target.value })} className={inputCls} /></div>
-                <div><label className="block text-label-md text-slate-300 mb-1.5">End</label><input type="date" value={newSup.end_date || ''} onChange={e => setNewSup({ ...newSup, end_date: e.target.value })} className={inputCls} /></div>
+                <div><label className="block text-label-md text-slate-300 mb-1.5">Start</label><DatePicker required value={newSup.start_date} onChange={(v) => setNewSup({ ...newSup, start_date: v })} placeholder="Pick a date" /></div>
+                <div><label className="block text-label-md text-slate-300 mb-1.5">End</label><DatePicker value={newSup.end_date || ''} onChange={(v) => setNewSup({ ...newSup, end_date: v })} placeholder="Pick a date" /></div>
               </div>
               <div><label className="block text-label-md text-slate-300 mb-1.5">Remarks</label><input value={newSup.remarks || ''} onChange={e => setNewSup({ ...newSup, remarks: e.target.value })} className={inputCls} /></div>
               <div className="flex justify-end gap-sm">
-                <button type="button" onClick={() => setNewSup(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300">Cancel</button>
-                <button type="submit" disabled={saveSupAssign.isPending} className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold disabled:opacity-60">{saveSupAssign.isPending ? 'Saving…' : 'Save'}</button>
+                <button type="button" onClick={() => setNewSup(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+                <button type="submit" disabled={saveSupAssign.isPending} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60">{saveSupAssign.isPending ? 'Saving…' : 'Save'}</button>
               </div>
             </form>
           </div>
@@ -397,7 +463,7 @@ function SiteDetailModal({ id, onClose, onEdit }) {
 
         {newDist && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <form onSubmit={submitDist} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-md space-y-md">
+            <form onSubmit={submitDist} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-md space-y-md">
               <h3 className="text-h3 font-h3 text-slate-100">New Distribution Assignment</h3>
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">Distributor</label>
@@ -425,13 +491,13 @@ function SiteDetailModal({ id, onClose, onEdit }) {
                 />
               </div>
               <div className="grid grid-cols-2 gap-md">
-                <div><label className="block text-label-md text-slate-300 mb-1.5">Start</label><input type="date" required value={newDist.start_date} onChange={e => setNewDist({ ...newDist, start_date: e.target.value })} className={inputCls} /></div>
-                <div><label className="block text-label-md text-slate-300 mb-1.5">End</label><input type="date" value={newDist.end_date || ''} onChange={e => setNewDist({ ...newDist, end_date: e.target.value })} className={inputCls} /></div>
+                <div><label className="block text-label-md text-slate-300 mb-1.5">Start</label><DatePicker required value={newDist.start_date} onChange={(v) => setNewDist({ ...newDist, start_date: v })} placeholder="Pick a date" /></div>
+                <div><label className="block text-label-md text-slate-300 mb-1.5">End</label><DatePicker value={newDist.end_date || ''} onChange={(v) => setNewDist({ ...newDist, end_date: v })} placeholder="Pick a date" /></div>
               </div>
               <div><label className="block text-label-md text-slate-300 mb-1.5">Remarks</label><input value={newDist.remarks || ''} onChange={e => setNewDist({ ...newDist, remarks: e.target.value })} className={inputCls} /></div>
               <div className="flex justify-end gap-sm">
-                <button type="button" onClick={() => setNewDist(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300">Cancel</button>
-                <button type="submit" disabled={saveDistAssign.isPending} className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold disabled:opacity-60">{saveDistAssign.isPending ? 'Saving…' : 'Save'}</button>
+                <button type="button" onClick={() => setNewDist(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+                <button type="submit" disabled={saveDistAssign.isPending} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60">{saveDistAssign.isPending ? 'Saving…' : 'Save'}</button>
               </div>
             </form>
           </div>

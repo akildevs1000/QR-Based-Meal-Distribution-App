@@ -9,10 +9,10 @@ import Select from '../components/Select'
 import RowMenu from '../components/RowMenu'
 
 const inputCls =
-  'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all'
 
 const filterCls =
-  'bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
 
 const apiOrigin = (import.meta.env.VITE_API_BASE || 'http://localhost:8000/api').replace(/\/api\/?$/, '')
 const fileUrl = (p) => (p ? `${apiOrigin}/storage/${p}` : null)
@@ -79,7 +79,7 @@ export default function Complaints() {
           <h1 className="font-h1 text-h1 text-slate-100">Complaints</h1>
           <p className="font-body-md text-body-md text-slate-400 mt-1">Log food-service issues and track resolution.</p>
         </div>
-        <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-colors">
+        <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 whitespace-nowrap transition-colors">
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>New complaint
         </button>
       </header>
@@ -137,13 +137,14 @@ export default function Complaints() {
               <th className="px-4 py-3 font-medium">Description</th>
               <th className="px-4 py-3 font-medium">Logged by</th>
               <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Supplier reply</th>
               <th className="px-4 py-3 font-medium">Resolved</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
-            {isLoading && <tr><td colSpan="10" className="p-6 text-center text-slate-500">Loading…</td></tr>}
-            {!isLoading && rows.length === 0 && <tr><td colSpan="10" className="p-6 text-center text-slate-500">No complaints.</td></tr>}
+            {isLoading && <tr><td colSpan="11" className="p-6 text-center text-slate-500">Loading…</td></tr>}
+            {!isLoading && rows.length === 0 && <tr><td colSpan="11" className="p-6 text-center text-slate-500">No complaints.</td></tr>}
             {rows.map(c => (
               <tr key={c.id} className="hover:bg-surface-container-highest/10 transition-colors">
                 <td className="px-4 py-3 font-mono text-slate-300">{c.ref_no}</td>
@@ -154,6 +155,14 @@ export default function Complaints() {
                 <td className="px-4 py-3 text-slate-400 text-xs truncate max-w-[220px]">{c.description}</td>
                 <td className="px-4 py-3 text-slate-400 text-xs">{c.logger?.name || <span className="text-slate-500">—</span>}</td>
                 <td className="px-4 py-3"><span className={statusBadge(c.status)}>{(c.status || '').toUpperCase().replace('_', ' ')}</span></td>
+                <td className="px-4 py-3 text-xs max-w-[16rem]">
+                  {c.supplier_response ? (
+                    <div>
+                      <div className="text-slate-300 truncate" title={c.supplier_response}>{c.supplier_response}</div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">{c.supplier_responded_at ? String(c.supplier_responded_at).replace('T', ' ').slice(0, 16) : ''}</div>
+                    </div>
+                  ) : <span className="text-slate-500">—</span>}
+                </td>
                 <td className="px-4 py-3 font-mono text-[12px] text-slate-400">{c.date_resolved ? String(c.date_resolved).slice(0, 10) : <span className="text-slate-500">—</span>}</td>
                 <td className="px-4 py-3 text-right whitespace-nowrap">
                   <div className="inline-flex items-center gap-1">
@@ -180,7 +189,7 @@ export default function Complaints() {
 
       {editing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-2xl space-y-md max-h-[90vh] overflow-y-auto">
+          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-2xl space-y-md max-h-[90vh] overflow-y-auto">
             <div>
               <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? `Edit ${editing.ref_no}` : 'New Complaint'}</h2>
               <p className="text-body-md text-slate-400 mt-1">All fields will auto-fill logged-by from your account.</p>
@@ -269,9 +278,18 @@ export default function Complaints() {
               <label className="block text-label-md text-slate-300 mb-1.5">Remarks</label>
               <textarea rows={2} value={editing.remarks || ''} onChange={e => setEditing({ ...editing, remarks: e.target.value })} className={`${inputCls} resize-y`} placeholder="Escalated to supplier / supplier apologized / investigating…" />
             </div>
+            {editing.supplier_response && (
+              <div className="bg-amber-900/10 border border-amber-700/30 rounded p-3">
+                <div className="text-label-sm text-amber-300/80 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>reply</span>Supplier response
+                  {editing.supplier_responded_at && <span className="text-[10px] text-slate-500 font-mono ml-auto">{String(editing.supplier_responded_at).replace('T', ' ').slice(0, 16)}</span>}
+                </div>
+                <div className="text-slate-200 text-sm whitespace-pre-wrap">{editing.supplier_response}</div>
+              </div>
+            )}
             <div className="flex justify-end gap-sm pt-sm">
-              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-              <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+              <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
                 {save.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>

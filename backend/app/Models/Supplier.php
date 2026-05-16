@@ -43,4 +43,9 @@ class Supplier extends Model
     {
         return $this->hasMany(SupplierMealAssignment::class);
     }
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(SupplierUser::class);
+    }
 }

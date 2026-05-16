@@ -127,7 +127,7 @@ class ReportService
         usort($rows, fn ($a, $b) => [$a['supplier'], $a['site'], $a['date']] <=> [$b['supplier'], $b['site'], $b['date']]);
 
         return [
-            'title'   => 'Distribution Point Meals by Supplier',
+            'title'   => 'Site Meals by Supplier',
             'period'  => $this->periodLabel($from, $to),
             'headers' => array_merge(['Supplier', 'Site', 'Date'], $ruleNames, ['Total']),
             'rows'    => $rows,

@@ -270,6 +270,8 @@ export default function HomeScreen({ site, brand, onScan, onChangeSite, onLock, 
 
         <ProgressBar styles={styles} colors={colors} stats={stats} />
 
+        <QuotaStrip styles={styles} colors={colors} quotas={stats?.meal_quotas} currentRuleId={currentMeal?.id} />
+
         <View style={styles.sectionHead}>
           <Ionicons name="time-outline" size={16} color={colors.onSurfaceVariant} />
           <Text style={styles.sectionTitle}>Recent Activity</Text>
@@ -320,6 +322,39 @@ export default function HomeScreen({ site, brand, onScan, onChangeSite, onLock, 
             )}
           </>
         )}
+      </ScrollView>
+    </View>
+  )
+}
+
+function QuotaStrip({ styles, colors, quotas, currentRuleId }) {
+  if (!Array.isArray(quotas) || quotas.length === 0) return null
+  const total = quotas.reduce((sum, q) => sum + (q.quantity || 0), 0)
+  return (
+    <View style={styles.quotaWrap}>
+      <View style={styles.quotaHead}>
+        <View style={styles.progressTitleRow}>
+          <Ionicons name="restaurant-outline" size={14} color={colors.onSurfaceVariant} />
+          <Text style={styles.progressTitle}>Today's Meals to Prepare</Text>
+        </View>
+        <Text style={styles.quotaTotal}>{total.toLocaleString()}</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quotaRow}>
+        {quotas.map((q) => {
+          const isActive = q.meal_rule_id === currentRuleId
+          return (
+            <View
+              key={q.meal_rule_id}
+              style={[styles.quotaChip, isActive && { borderColor: colors.primary, backgroundColor: 'rgba(59,130,246,0.10)' }]}
+            >
+              <Ionicons name={mealIcon(q.name)} size={14} color={isActive ? colors.primary : colors.onSurfaceVariant} />
+              <Text style={[styles.quotaName, isActive && { color: colors.primary, fontWeight: '800' }]} numberOfLines={1}>
+                {q.name || '—'}
+              </Text>
+              <Text style={[styles.quotaValue, isActive && { color: colors.primary }]}>{(q.quantity ?? 0).toLocaleString()}</Text>
+            </View>
+          )
+        })}
       </ScrollView>
     </View>
   )
@@ -663,6 +698,57 @@ const makeStyles = (colors, mode) => {
   },
   progressMetaStrong: {
     color: colors.onSurface,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+
+  quotaWrap: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.surfaceContainerLow,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  quotaHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  quotaTotal: {
+    color: colors.onSurface,
+    fontSize: 16,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.3,
+  },
+  quotaRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  quotaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  quotaName: {
+    color: colors.onSurface,
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: 110,
+  },
+  quotaValue: {
+    color: colors.onSurfaceVariant,
+    fontSize: 12,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },

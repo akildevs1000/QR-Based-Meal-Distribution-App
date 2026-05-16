@@ -79,7 +79,7 @@ End-to-end smoke test for the QR Meal Distribution CMS. Work top to bottom on a 
 
 ---
 
-## 4. Distribution Points / Sites (`/sites`)
+## 4. Sites (`/sites`)
 
 - [ ] List shows 4 seeded sites with **Type** (CAMP/SITE), **Status**, **Start**, **End** columns
 - [ ] Status badges: DIP-1 = ACTIVE green, P-101 = FINISH blue

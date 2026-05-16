@@ -7,7 +7,7 @@ import RowMenu from '../components/RowMenu'
 import Checkbox from '../components/Checkbox'
 
 const inputCls =
-  'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all'
 
 const isSuperAdminRow = (u) => u?.role === 'admin'
 
@@ -100,7 +100,7 @@ export default function Users() {
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" style={{ fontSize: 18 }}>search</span>
             <input placeholder="Search users…" value={q} onChange={e => setQ(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/50 rounded pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64" />
+              className="bg-surface-container-high/50 border border-outline-variant/30 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64" />
           </div>
           <Select
             value={roleFilter}
@@ -109,7 +109,7 @@ export default function Users() {
             options={roleFilterOptions}
           />
           {canCreate && (
-            <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-colors">
+            <button onClick={openNew} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 whitespace-nowrap transition-colors">
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>Add user
             </button>
           )}
@@ -181,7 +181,7 @@ export default function Users() {
 
       {editing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-md space-y-md">
+          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-md space-y-md">
             <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? 'Edit' : 'New'} User</h2>
             {err && (
               <div className="px-3 py-2 rounded border border-red-900/50 bg-red-900/20 text-red-300 text-sm">
@@ -224,8 +224,8 @@ export default function Users() {
               Active
             </Checkbox>
             <div className="flex justify-end gap-sm pt-sm">
-              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-              <button type="submit" disabled={save.isPending || roles.length === 0} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+              <button type="submit" disabled={save.isPending || roles.length === 0} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
                 {save.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -34,6 +35,8 @@ export default function DatePicker({
 }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef(null)
+  const popoverRef = useRef(null)
+  const [coords, setCoords] = useState(null)
   const [view, setView] = useState(() => {
     const p = parseISO(value)
     const now = new Date()
@@ -42,7 +45,11 @@ export default function DatePicker({
 
   useEffect(() => {
     if (!open) return
-    const onDoc = (ev) => { if (wrapRef.current && !wrapRef.current.contains(ev.target)) setOpen(false) }
+    const onDoc = (ev) => {
+      if (wrapRef.current && wrapRef.current.contains(ev.target)) return
+      if (popoverRef.current && popoverRef.current.contains(ev.target)) return
+      setOpen(false)
+    }
     const onKey = (ev) => { if (ev.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
@@ -51,6 +58,32 @@ export default function DatePicker({
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
+
+  useLayoutEffect(() => {
+    if (!open) { setCoords(null); return }
+    const POPOVER_W = 288 // matches w-72
+    const update = () => {
+      const r = wrapRef.current?.getBoundingClientRect()
+      if (!r) return
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      let left = align === 'right' ? r.right - POPOVER_W : r.left
+      left = Math.max(8, Math.min(left, vw - POPOVER_W - 8))
+      const popH = popoverRef.current?.offsetHeight || 340
+      const spaceBelow = vh - r.bottom
+      const top = spaceBelow < popH + 8 && r.top > popH + 8
+        ? r.top - popH - 4
+        : r.bottom + 4
+      setCoords({ top, left, width: POPOVER_W })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open, align])
 
   useEffect(() => {
     if (!open) return
@@ -93,8 +126,6 @@ export default function DatePicker({
     setOpen(false)
   }
 
-  const popoverPos = align === 'right' ? 'right-0' : 'left-0'
-
   return (
     <div ref={wrapRef} className={`relative ${className}`}>
       <button
@@ -103,9 +134,9 @@ export default function DatePicker({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={[
-          'w-full flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-left transition-all',
-          'focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none',
-          'hover:border-outline-variant',
+          'w-full flex items-center gap-2 bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-left transition-all',
+          'focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none',
+          'hover:bg-surface-container-high/70 hover:border-outline-variant/50',
           disabled ? 'opacity-60 cursor-not-allowed' : '',
           value ? 'pr-9' : 'pr-3',
         ].join(' ')}
@@ -138,8 +169,12 @@ export default function DatePicker({
         />
       )}
 
-      {open && !disabled && (
-        <div className={`absolute z-30 mt-1 ${popoverPos} bg-surface-container-low border border-outline-variant/50 rounded-lg shadow-xl p-md w-72`}>
+      {open && !disabled && coords && createPortal(
+        <div
+          ref={popoverRef}
+          style={{ position: 'fixed', top: coords.top, left: coords.left, width: coords.width, zIndex: 1000 }}
+          className="bg-surface-container-low border border-outline-variant/50 rounded-lg shadow-xl p-md"
+        >
           <div className="flex items-center justify-between mb-sm">
             <div className="flex items-center gap-0.5">
               <button type="button" onClick={goPrevYear} className="p-1 rounded hover:bg-surface-container-highest/40 text-slate-300" aria-label="Previous year">
@@ -191,7 +226,8 @@ export default function DatePicker({
             <button type="button" onClick={clear} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">Clear</button>
             <button type="button" onClick={goToday} className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors">Today</button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

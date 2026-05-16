@@ -13,11 +13,14 @@ class Employee extends Model
 
     protected $fillable = [
         'employee_code',
+        'employee_ref_id',
+        'company',
         'name',
         'designation',
         'meal_eligibility',
         'duty_status',
         'date_of_joining',
+        'expiry_date',
         'grade',
         'profile_picture',
         'site_id',
@@ -29,7 +32,8 @@ class Employee extends Model
         'is_vip' => 'boolean',
         'active' => 'boolean',
         'meal_eligibility' => 'boolean',
-        'date_of_joining' => 'date',
+        'date_of_joining' => 'date:Y-m-d',
+        'expiry_date' => 'date:Y-m-d',
     ];
 
     public function logs(): HasMany

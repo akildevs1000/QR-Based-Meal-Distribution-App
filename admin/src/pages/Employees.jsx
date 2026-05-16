@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEmployees, useSaveEmployee, useDeleteEmployee, useSites } from '../api/queries'
+import { useEmployees, useSaveEmployee, useDeleteEmployee, useImportEmployees, useSites } from '../api/queries'
 import Pagination from '../components/Pagination'
 import Select from '../components/Select'
 import DatePicker from '../components/DatePicker'
 import RowMenu from '../components/RowMenu'
+import Checkbox from '../components/Checkbox'
 import {
   prewarmBackgroundRemoval,
   removeBackgroundOnWhite,
@@ -12,13 +13,22 @@ import {
 } from '../lib/backgroundRemoval'
 
 const inputCls =
-  'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all'
 const inputErrorCls =
   'w-full bg-surface-container-lowest border border-red-500/70 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-red-400 focus:ring-1 focus:ring-red-400 focus:outline-none transition-all'
 
 function FieldError({ messages }) {
   if (!messages || messages.length === 0) return null
   return <p className="mt-1 text-xs text-red-400">{Array.isArray(messages) ? messages[0] : messages}</p>
+}
+
+function isExpired(d) {
+  if (!d) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const exp = new Date(String(d).slice(0, 10))
+  if (isNaN(exp.getTime())) return false
+  return exp < today
 }
 
 export default function Employees() {
@@ -29,6 +39,11 @@ export default function Employees() {
   const { data: sitesData } = useSites({ all: 1 })
   const save = useSaveEmployee()
   const del = useDeleteEmployee()
+  const importMut = useImportEmployees()
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState(null)
+  const [importResult, setImportResult] = useState(null)
+  const [importError, setImportError] = useState(null)
   const [editing, setEditing] = useState(null)
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState(null)
@@ -52,11 +67,14 @@ export default function Employees() {
     setFormError(null)
     setEditing({
       employee_code: '',
+      employee_ref_id: '',
+      company: '',
       name: '',
       designation: '',
       meal_eligibility: true,
       duty_status: 'on_duty',
       date_of_joining: '',
+      expiry_date: '',
       grade: '',
       site_id: null,
       profile_picture: null,
@@ -106,6 +124,31 @@ export default function Employees() {
     if (picks.length > 0) setBulkPrinting(picks)
   }
 
+  const openImport = () => {
+    setImportFile(null)
+    setImportResult(null)
+    setImportError(null)
+    setImportOpen(true)
+  }
+  const closeImport = () => {
+    setImportOpen(false)
+    setImportFile(null)
+    setImportResult(null)
+    setImportError(null)
+  }
+  const runImport = async () => {
+    if (!importFile) return
+    setImportError(null)
+    setImportResult(null)
+    try {
+      const res = await importMut.mutateAsync(importFile)
+      setImportResult(res)
+    } catch (err) {
+      const data = err?.response?.data
+      setImportError(data?.message || err?.message || 'Import failed.')
+    }
+  }
+
   return (
     <>
       <header className="flex justify-between items-end mb-lg">
@@ -120,21 +163,19 @@ export default function Employees() {
               placeholder="Search employees…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/50 rounded pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64"
+              className="bg-surface-container-high/50 border border-outline-variant/30 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64"
             />
           </div>
-          {selected.size > 0 && (
-            <button
-              onClick={openBulkPrint}
-              className="bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 transition-colors"
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 18 }}>print</span>
-              Print {selected.size} card{selected.size === 1 ? '' : 's'}
-            </button>
-          )}
+          <button
+            onClick={openImport}
+            className="bg-surface-container-highest/40 hover:bg-surface-container-highest/60 text-slate-200 border border-outline-variant/50 px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 transition-colors"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>upload_file</span>
+            Import
+          </button>
           <button
             onClick={openNew}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 transition-colors"
+            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 transition-colors"
           >
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
             Add employee
@@ -147,12 +188,12 @@ export default function Employees() {
           <thead className="bg-surface-container-highest/20 text-label-sm text-slate-400 uppercase tracking-wider">
             <tr>
               <th className="px-3 py-3 font-medium w-8">
-                <input
-                  type="checkbox"
+                <Checkbox
                   aria-label="Select all"
                   checked={rows.length > 0 && selected.size === rows.length}
+                  indeterminate={selected.size > 0 && selected.size < rows.length}
                   onChange={toggleSelectAll}
-                  className="rounded border-outline-variant bg-surface-container-lowest text-blue-500 focus:ring-blue-400"
+                  size={20}
                 />
               </th>
               <th className="px-4 py-3 font-medium">Photo</th>
@@ -163,6 +204,7 @@ export default function Employees() {
               <th className="px-4 py-3 font-medium">Duty</th>
               <th className="px-4 py-3 font-medium">Site</th>
               <th className="px-4 py-3 font-medium">Joined</th>
+              <th className="px-4 py-3 font-medium">Expires</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium text-center">Print</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -170,19 +212,19 @@ export default function Employees() {
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
             {isLoading && (
-              <tr><td colSpan="12" className="p-6 text-center text-slate-500">Loading…</td></tr>
+              <tr><td colSpan="13" className="p-6 text-center text-slate-500">Loading…</td></tr>
             )}
             {!isLoading && rows.length === 0 && (
-              <tr><td colSpan="12" className="p-6 text-center text-slate-500">No employees.</td></tr>
+              <tr><td colSpan="13" className="p-6 text-center text-slate-500">No employees.</td></tr>
             )}
             {rows.map((e) => (
               <tr key={e.id} className="hover:bg-surface-container-highest/10 transition-colors">
                 <td className="px-3 py-3">
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    aria-label={`Select ${e.employee_code}`}
                     checked={selected.has(e.id)}
                     onChange={() => toggleSelect(e.id)}
-                    className="rounded border-outline-variant bg-surface-container-lowest text-blue-500 focus:ring-blue-400"
+                    size={20}
                   />
                 </td>
                 <td className="px-4 py-3">
@@ -194,8 +236,18 @@ export default function Employees() {
                     </div>
                   )}
                 </td>
-                <td className="px-4 py-3 font-mono text-slate-300">{e.employee_code}</td>
-                <td className="px-4 py-3 text-slate-200 font-medium">{e.name}</td>
+                <td className="px-4 py-3 font-mono text-slate-300">
+                  <div>{e.employee_code}</div>
+                  {e.employee_ref_id && (
+                    <div className="text-[10px] text-slate-500 mt-0.5">ref {e.employee_ref_id}</div>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-slate-200 font-medium">
+                  <div>{e.name}</div>
+                  {e.company && (
+                    <div className="text-[10px] font-normal text-slate-500 mt-0.5 uppercase tracking-wide">{e.company}</div>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-slate-300">{e.designation || <span className="text-slate-500">—</span>}</td>
                 <td className="px-4 py-3">
                   {e.meal_eligibility
@@ -215,6 +267,15 @@ export default function Employees() {
                 </td>
                 <td className="px-4 py-3 text-slate-300 font-mono text-[12px]">
                   {e.date_of_joining ? String(e.date_of_joining).slice(0, 10) : <span className="text-slate-500">—</span>}
+                </td>
+                <td className="px-4 py-3 font-mono text-[12px]">
+                  {e.expiry_date ? (
+                    <span className={isExpired(e.expiry_date) ? 'text-red-400' : 'text-slate-300'}>
+                      {String(e.expiry_date).slice(0, 10)}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <span
@@ -257,7 +318,7 @@ export default function Employees() {
 
       {viewing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setViewing(null)}>
-          <div onClick={(ev) => ev.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div onClick={(ev) => ev.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-start gap-md mb-md">
               {viewing.profile_picture ? (
                 <img src={pictureUrl(viewing.profile_picture)} alt="" className="w-20 h-20 rounded-full object-cover border border-outline-variant/40" />
@@ -284,6 +345,14 @@ export default function Employees() {
 
             <dl className="grid grid-cols-2 gap-md text-sm">
               <div>
+                <dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">Company</dt>
+                <dd className="text-slate-200">{viewing.company || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">Reference ID</dt>
+                <dd className="text-slate-200 font-mono text-[13px]">{viewing.employee_ref_id || '—'}</dd>
+              </div>
+              <div>
                 <dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">Designation</dt>
                 <dd className="text-slate-200">{viewing.designation || '—'}</dd>
               </div>
@@ -302,6 +371,23 @@ export default function Employees() {
               <div>
                 <dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">Date of joining</dt>
                 <dd className="text-slate-200 font-mono text-[13px]">{viewing.date_of_joining ? String(viewing.date_of_joining).slice(0, 10) : '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">Expiry date</dt>
+                <dd className="font-mono text-[13px]">
+                  {viewing.expiry_date ? (
+                    <span className={isExpired(viewing.expiry_date) ? 'text-red-400' : 'text-slate-200'}>
+                      {String(viewing.expiry_date).slice(0, 10)}
+                      {isExpired(viewing.expiry_date) && (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-red-900/40 text-red-300 border-red-800/50">
+                          EXPIRED
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-slate-200">—</span>
+                  )}
+                </dd>
               </div>
               <div>
                 <dt className="text-label-sm text-slate-500 uppercase tracking-wider mb-1">Site</dt>
@@ -325,10 +411,10 @@ export default function Employees() {
             </dl>
 
             <div className="flex justify-end gap-sm pt-lg mt-md border-t border-outline-variant/30">
-              <button onClick={() => setViewing(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Close</button>
+              <button onClick={() => setViewing(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Close</button>
               <button
                 onClick={() => { const e = viewing; setViewing(null); setErrors({}); setFormError(null); setEditing(e) }}
-                className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 transition-colors"
               >
                 Edit
               </button>
@@ -339,10 +425,10 @@ export default function Employees() {
 
       {editing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-lg space-y-md max-h-[90vh] overflow-y-auto">
-            <div>
+          <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-md w-full max-w-2xl space-y-3 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-baseline justify-between">
               <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? 'Edit' : 'New'} Employee</h2>
-              <p className="text-body-md text-slate-400 mt-1">Assign a unique code to generate a QR.</p>
+              <p className="text-xs text-slate-500">Assign a unique code to generate a QR.</p>
             </div>
             {formError && (
               <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
@@ -355,28 +441,50 @@ export default function Employees() {
               onChange={(file) => { setEditing({ ...editing, profile_picture: file }); clearFieldError('profile_picture') }}
             />
             <FieldError messages={errors.profile_picture} />
-            <div>
-              <label className="block text-label-md text-slate-300 mb-1.5">Employee code</label>
-              <input
-                required
-                value={editing.employee_code || ''}
-                onChange={(ev) => { setEditing({ ...editing, employee_code: ev.target.value }); clearFieldError('employee_code') }}
-                className={`${errors.employee_code ? inputErrorCls : inputCls} font-mono`}
-                placeholder="EMP-00001"
-              />
-              <FieldError messages={errors.employee_code} />
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <label className="block text-label-md text-slate-300 mb-1.5">Code</label>
+                <input
+                  required
+                  value={editing.employee_code || ''}
+                  onChange={(ev) => { setEditing({ ...editing, employee_code: ev.target.value }); clearFieldError('employee_code') }}
+                  className={`${errors.employee_code ? inputErrorCls : inputCls} font-mono`}
+                  placeholder="EMP-00001"
+                />
+                <FieldError messages={errors.employee_code} />
+              </div>
+              <div>
+                <label className="block text-label-md text-slate-300 mb-1.5">Reference ID</label>
+                <input
+                  value={editing.employee_ref_id || ''}
+                  onChange={(ev) => { setEditing({ ...editing, employee_ref_id: ev.target.value }); clearFieldError('employee_ref_id') }}
+                  className={`${errors.employee_ref_id ? inputErrorCls : inputCls} font-mono`}
+                  placeholder="57175"
+                />
+                <FieldError messages={errors.employee_ref_id} />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-label-md text-slate-300 mb-1.5">Name</label>
+                <input
+                  required
+                  value={editing.name || ''}
+                  onChange={(ev) => { setEditing({ ...editing, name: ev.target.value }); clearFieldError('name') }}
+                  className={errors.name ? inputErrorCls : inputCls}
+                />
+                <FieldError messages={errors.name} />
+              </div>
             </div>
-            <div>
-              <label className="block text-label-md text-slate-300 mb-1.5">Name</label>
-              <input
-                required
-                value={editing.name || ''}
-                onChange={(ev) => { setEditing({ ...editing, name: ev.target.value }); clearFieldError('name') }}
-                className={errors.name ? inputErrorCls : inputCls}
-              />
-              <FieldError messages={errors.name} />
-            </div>
-            <div className="grid grid-cols-2 gap-md">
+            <div className="grid grid-cols-4 gap-3">
+              <div className="col-span-2">
+                <label className="block text-label-md text-slate-300 mb-1.5">Company</label>
+                <input
+                  value={editing.company || ''}
+                  onChange={(ev) => { setEditing({ ...editing, company: ev.target.value }); clearFieldError('company') }}
+                  className={errors.company ? inputErrorCls : inputCls}
+                  placeholder="INNOVOBLD"
+                />
+                <FieldError messages={errors.company} />
+              </div>
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">Designation</label>
                 <input
@@ -398,7 +506,7 @@ export default function Employees() {
                 <FieldError messages={errors.grade} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-md">
+            <div className="grid grid-cols-4 gap-3">
               <div>
                 <label className="block text-label-md text-slate-300 mb-1.5">Meal eligibility</label>
                 <Select
@@ -421,15 +529,29 @@ export default function Employees() {
                   ]}
                 />
               </div>
-            </div>
-            <div>
-              <label className="block text-label-md text-slate-300 mb-1.5">Date of joining</label>
-              <DatePicker
-                value={editing.date_of_joining ? String(editing.date_of_joining).slice(0, 10) : ''}
-                onChange={(v) => { setEditing({ ...editing, date_of_joining: v }); clearFieldError('date_of_joining') }}
-                placeholder="Pick a date"
-              />
-              <FieldError messages={errors.date_of_joining} />
+              <div>
+                <label className="block text-label-md text-slate-300 mb-1.5">Joined</label>
+                <DatePicker
+                  value={editing.date_of_joining ? String(editing.date_of_joining).slice(0, 10) : ''}
+                  onChange={(v) => { setEditing({ ...editing, date_of_joining: v }); clearFieldError('date_of_joining') }}
+                  placeholder="Pick a date"
+                />
+                <FieldError messages={errors.date_of_joining} />
+              </div>
+              <div>
+                <label className="block text-label-md text-slate-300 mb-1.5">
+                  Expiry <span className="text-slate-600">· optional</span>
+                </label>
+                <DatePicker
+                  value={editing.expiry_date ? String(editing.expiry_date).slice(0, 10) : ''}
+                  onChange={(v) => { setEditing({ ...editing, expiry_date: v }); clearFieldError('expiry_date') }}
+                  placeholder="Pick a date"
+                />
+                <FieldError messages={errors.expiry_date} />
+                {isExpired(editing.expiry_date) && (
+                  <p className="mt-1 text-xs text-red-400">In the past — employee will be denied at scan.</p>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-label-md text-slate-300 mb-1.5">Site</label>
@@ -444,22 +566,19 @@ export default function Employees() {
               />
               <FieldError messages={errors.site_id} />
             </div>
-            <div className="flex gap-md text-sm">
-              <label className="flex items-center gap-2 text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={editing.active !== false}
-                  onChange={(ev) => setEditing({ ...editing, active: ev.target.checked })}
-                  className="rounded border-outline-variant bg-surface-container-lowest text-blue-500 focus:ring-blue-400"
-                />
+            <div className="flex items-center justify-between pt-sm border-t border-outline-variant/30">
+              <Checkbox
+                checked={editing.active !== false}
+                onChange={(v) => setEditing({ ...editing, active: v })}
+              >
                 Active
-              </label>
-            </div>
-            <div className="flex justify-end gap-sm pt-sm">
-              <button type="button" onClick={close} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-              <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
-                {save.isPending ? 'Saving…' : 'Save'}
-              </button>
+              </Checkbox>
+              <div className="flex gap-sm">
+                <button type="button" onClick={close} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+                <button type="submit" disabled={save.isPending} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
+                  {save.isPending ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -467,7 +586,7 @@ export default function Employees() {
 
       {printing && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setPrinting(null)}>
-          <div onClick={(ev) => ev.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg max-w-sm w-full">
+          <div onClick={(ev) => ev.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg max-w-sm w-full">
             <h2 className="text-h3 font-h3 text-slate-100 mb-md">Access card</h2>
             <div className="flex justify-center bg-slate-900/40 rounded-lg p-md">
               <div id="print-card-area">
@@ -475,8 +594,8 @@ export default function Employees() {
               </div>
             </div>
             <div className="flex justify-end gap-sm pt-md">
-              <button onClick={() => setPrinting(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Close</button>
-              <button onClick={() => window.print()} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold flex items-center gap-2 transition-colors">
+              <button onClick={() => setPrinting(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Close</button>
+              <button onClick={() => window.print()} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 transition-colors">
                 <span className="material-symbols-outlined" style={{ fontSize: 18 }}>print</span>
                 Print
               </button>
@@ -485,17 +604,97 @@ export default function Employees() {
         </div>
       )}
 
+      {importOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={closeImport}>
+          <div onClick={(ev) => ev.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-h3 font-h3 text-slate-100">Import employees</h2>
+            <p className="text-body-md text-slate-400 mt-1">
+              Upload an Excel (.xlsx) or CSV file. Existing employees (matched by code) are updated in place; new ones are created. Unknown camp codes are auto-created as sites.
+            </p>
+            <div className="mt-md text-xs text-slate-500 leading-relaxed">
+              Expected headers: <span className="font-mono text-slate-300">LABOR_CODE</span>, <span className="font-mono text-slate-300">EMPNAME</span>, <span className="font-mono text-slate-300">DESIGNAITON</span>, <span className="font-mono text-slate-300">DATE_OF_JOINING</span>, <span className="font-mono text-slate-300">EFECTIVE_DATE</span>, <span className="font-mono text-slate-300">CAMPCODE</span>, <span className="font-mono text-slate-300">CAMP_NAME</span>, <span className="font-mono text-slate-300">MEALS_ELIGIBILITY</span>, <span className="font-mono text-slate-300">STATUS</span>. Employees whose <span className="font-mono text-slate-300">EFECTIVE_DATE</span> has passed will be denied meals at the scanner.
+            </div>
+
+            <div className="mt-md">
+              <label className="flex items-center gap-md rounded-lg border-2 border-dashed border-outline-variant/50 hover:border-blue-400/60 hover:bg-surface-container-highest/20 p-md cursor-pointer transition-colors">
+                <span className="material-symbols-outlined text-slate-400" style={{ fontSize: 22 }}>upload_file</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-slate-200 font-medium truncate">
+                    {importFile ? importFile.name : 'Choose .xlsx or .csv file'}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">Up to 10 MB</div>
+                </div>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(ev) => { setImportFile(ev.target.files?.[0] ?? null); setImportResult(null); setImportError(null) }}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {importError && (
+              <div className="mt-md rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {importError}
+              </div>
+            )}
+
+            {importResult && (
+              <div className="mt-md rounded border border-emerald-500/30 bg-emerald-500/5 p-md">
+                <div className="text-sm text-emerald-300 font-semibold mb-2">Import complete</div>
+                <dl className="grid grid-cols-2 gap-x-md gap-y-1 text-sm">
+                  <dt className="text-slate-400">Employees created</dt>
+                  <dd className="text-slate-200 font-mono">{importResult.employees_created}</dd>
+                  <dt className="text-slate-400">Employees updated</dt>
+                  <dd className="text-slate-200 font-mono">{importResult.employees_updated}</dd>
+                  <dt className="text-slate-400">Sites created</dt>
+                  <dd className="text-slate-200 font-mono">{importResult.sites_created}</dd>
+                  <dt className="text-slate-400">Existing sites reused</dt>
+                  <dd className="text-slate-200 font-mono">{importResult.sites_skipped}</dd>
+                  <dt className="text-slate-400">Rows skipped</dt>
+                  <dd className="text-slate-200 font-mono">{importResult.rows_skipped}</dd>
+                </dl>
+                {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
+                  <details className="mt-md text-xs text-amber-300">
+                    <summary className="cursor-pointer">{importResult.errors.length} warning{importResult.errors.length === 1 ? '' : 's'}</summary>
+                    <ul className="mt-1 list-disc list-inside space-y-0.5 max-h-32 overflow-y-auto">
+                      {importResult.errors.map((m, i) => <li key={i}>{m}</li>)}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-sm pt-lg mt-md border-t border-outline-variant/30">
+              <button onClick={closeImport} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">
+                {importResult ? 'Close' : 'Cancel'}
+              </button>
+              {!importResult && (
+                <button
+                  onClick={runImport}
+                  disabled={!importFile || importMut.isPending}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 disabled:opacity-60 transition-colors"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>upload</span>
+                  {importMut.isPending ? 'Importing…' : 'Import'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {bulkPrinting && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setBulkPrinting(null)}>
-          <div onClick={(ev) => ev.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+          <div onClick={(ev) => ev.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-md">
               <div>
                 <h2 className="text-h3 font-h3 text-slate-100">Bulk access cards</h2>
                 <p className="text-body-md text-slate-400 mt-1">{bulkPrinting.length} card{bulkPrinting.length === 1 ? '' : 's'} — printed in a grid.</p>
               </div>
               <div className="flex gap-sm">
-                <button onClick={() => setBulkPrinting(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Close</button>
-                <button onClick={() => window.print()} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold flex items-center gap-2 transition-colors">
+                <button onClick={() => setBulkPrinting(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Close</button>
+                <button onClick={() => window.print()} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 transition-colors">
                   <span className="material-symbols-outlined" style={{ fontSize: 18 }}>print</span>
                   Print all
                 </button>
@@ -549,68 +748,67 @@ function PhotoDropzone({ value, existingUrl, onChange }) {
   }
 
   return (
-    <div>
-      <label className="block text-label-md text-slate-300 mb-1.5">Profile picture</label>
-      <div
-        onClick={() => { if (!processing) inputRef.current?.click() }}
-        onDragOver={(ev) => { ev.preventDefault(); if (!processing) setDragging(true) }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        className={
-          'flex items-center gap-md rounded-lg border-2 border-dashed p-md transition-colors ' +
-          (processing ? 'cursor-wait opacity-80 ' : 'cursor-pointer ') +
-          (dragging
-            ? 'border-blue-400 bg-blue-500/10'
-            : 'border-outline-variant/50 hover:border-blue-400/60 hover:bg-surface-container-highest/20')
-        }
-      >
-        {preview ? (
-          <img src={preview} alt="" className="w-16 h-16 rounded-full object-cover border border-outline-variant/40 bg-white" />
-        ) : (
-          <div className="w-16 h-16 rounded-full bg-surface-container-highest/40 border border-outline-variant/40 flex items-center justify-center text-slate-500">
-            <span className="material-symbols-outlined" style={{ fontSize: 28 }}>person</span>
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-slate-200 font-medium flex items-center gap-2">
-            <span
-              className={
-                'material-symbols-outlined ' +
-                (processing ? 'text-blue-400 animate-spin' : 'text-slate-400')
-              }
-              style={{ fontSize: 18 }}
-            >
-              {processing ? 'autorenew' : dragging ? 'file_download' : 'upload'}
-            </span>
+    <div
+      onClick={() => { if (!processing) inputRef.current?.click() }}
+      onDragOver={(ev) => { ev.preventDefault(); if (!processing) setDragging(true) }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={onDrop}
+      className={
+        'flex items-center gap-3 rounded-lg border border-dashed px-3 py-2 transition-colors ' +
+        (processing ? 'cursor-wait opacity-80 ' : 'cursor-pointer ') +
+        (dragging
+          ? 'border-blue-400 bg-blue-500/10'
+          : 'border-outline-variant/50 hover:border-blue-400/60 hover:bg-surface-container-highest/20')
+      }
+    >
+      {preview ? (
+        <img src={preview} alt="" className="w-10 h-10 rounded-full object-cover border border-outline-variant/40 bg-white shrink-0" />
+      ) : (
+        <div className="w-10 h-10 rounded-full bg-surface-container-highest/40 border border-outline-variant/40 flex items-center justify-center text-slate-500 shrink-0">
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>person</span>
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm text-slate-200 font-medium flex items-center gap-2 truncate">
+          <span
+            className={
+              'material-symbols-outlined shrink-0 ' +
+              (processing ? 'text-blue-400 animate-spin' : 'text-slate-400')
+            }
+            style={{ fontSize: 16 }}
+          >
+            {processing ? 'autorenew' : dragging ? 'file_download' : 'upload'}
+          </span>
+          <span className="truncate">
             {processing
               ? 'Removing background…'
               : dragging
                 ? 'Drop to upload'
                 : value instanceof File
                   ? value.name
-                  : 'Drop file or click to upload'}
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5">
-            {bgError
-              ? <span className="text-amber-400">{bgError}</span>
-              : 'PNG, JPEG or WebP · up to 4 MB · background auto-replaced with white'}
-          </div>
+                  : 'Profile picture — drop or click'}
+          </span>
         </div>
-        {value instanceof File && !processing && (
-          <button type="button" onClick={(ev) => { ev.stopPropagation(); onChange(null); setBgError(null) }}
-            className="p-1.5 rounded hover:bg-surface-container-highest/40 text-slate-400 hover:text-red-400 shrink-0">
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-          </button>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          disabled={processing}
-          onChange={(ev) => pick(ev.target.files?.[0])}
-          className="hidden"
-        />
+        <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+          {bgError
+            ? <span className="text-amber-400">{bgError}</span>
+            : 'PNG/JPEG/WebP · up to 4 MB · background auto-replaced'}
+        </div>
       </div>
+      {value instanceof File && !processing && (
+        <button type="button" onClick={(ev) => { ev.stopPropagation(); onChange(null); setBgError(null) }}
+          className="p-1 rounded hover:bg-surface-container-highest/40 text-slate-400 hover:text-red-400 shrink-0">
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>close</span>
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        disabled={processing}
+        onChange={(ev) => pick(ev.target.files?.[0])}
+        className="hidden"
+      />
     </div>
   )
 }

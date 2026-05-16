@@ -5,6 +5,7 @@ const MAP = {
   already_received: 'Already Received Meal',
   invalid_qr: 'Invalid QR Code',
   wrong_site: 'Wrong Site',
+  expired: 'ID Expired',
 }
 
 export function reasonLabel(reason) {

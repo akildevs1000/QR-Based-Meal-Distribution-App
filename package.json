@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n backend,admin,scanner -c blue,green,magenta \"npm:dev:backend\" \"npm:dev:admin\" \"npm:dev:scanner\"",
-    "dev:backend": "cd backend && php artisan serve --host 0.0.0.0",
+    "dev:backend": "cd backend && ..\\electron\\resources\\php\\php.exe artisan serve --host 0.0.0.0",
     "dev:admin": "cd admin && npm run dev",
     "dev:scanner": "cd scanner && npm start"
   },

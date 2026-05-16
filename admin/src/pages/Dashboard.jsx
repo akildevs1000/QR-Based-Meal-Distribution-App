@@ -1,250 +1,540 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useEmployees, useLogs, useMealRules, useSites } from '../api/queries'
+import {
+  useDashboardQuotas,
+  useEmployees,
+  useLogs,
+  useMealRules,
+  useSites,
+  useMealCategories,
+} from '../api/queries'
 import Select from '../components/Select'
 
+// ---------- helpers ----------
 function LiveClock() {
   const [now, setNow] = useState(() => new Date())
-
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
-
   const dateStr = now.toLocaleDateString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   })
   const timeStr = now.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
+    hour: '2-digit', minute: '2-digit', hour12: false,
   })
-
   return (
-    <div className="flex items-center gap-3 px-1 py-2">
-      <span className="material-symbols-outlined text-blue-400" style={{ fontSize: 22 }}>
-        schedule
-      </span>
-      <div className="flex flex-col leading-tight">
-        <span className="font-mono text-lg font-semibold text-slate-100 tabular-nums tracking-tight">
-          {timeStr}
-        </span>
-        <span className="text-[11px] text-slate-400 uppercase tracking-wider">{dateStr}</span>
-      </div>
-    </div>
-  )
-}
-
-function Metric({ label, icon, value, suffix, trend, accentClass = 'bg-blue-500/5', progress }) {
-  return (
-    <div className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 flex flex-col justify-between h-24 relative overflow-hidden">
-      <div className="flex justify-between items-start z-10">
-        <span className="text-[10px] text-slate-400 uppercase tracking-wider truncate mr-1 font-semibold">{label}</span>
-        <span className="material-symbols-outlined text-slate-500" style={{ fontSize: 16 }}>{icon}</span>
-      </div>
-      <div className="z-10">
-        <div className="text-xl font-bold text-slate-100 leading-none mb-1.5">
-          {value}
-          {suffix && <span className="text-slate-500 text-sm font-normal">{suffix}</span>}
-        </div>
-        {trend && (
-          <div className={`flex items-center gap-1 text-[10px] font-medium leading-none ${trend.color}`}>
-            {trend.icon && <span className="material-symbols-outlined" style={{ fontSize: 12 }}>{trend.icon}</span>}
-            <span>{trend.label}</span>
-          </div>
-        )}
-      </div>
-      {progress != null && (
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-surface-container-highest">
-          <div className="h-full bg-blue-500" style={{ width: `${Math.min(100, progress)}%` }} />
-        </div>
-      )}
-      <div className={`absolute bottom-0 right-0 w-24 h-24 ${accentClass} rounded-full blur-2xl -mr-8 -mb-8 pointer-events-none`} />
-    </div>
-  )
-}
-
-function StatusBadge({ result, reason }) {
-  const approved = result === 'allowed'
-  const denied = result === 'denied'
-  const label = approved
-    ? 'APPROVED'
-    : denied
-      ? `DENIED${reason ? ' · ' + reason.toUpperCase() : ''}`
-      : (result || 'ERROR').toUpperCase()
-  const cls = approved
-    ? 'bg-green-900/40 text-green-400 border-green-800/50'
-    : denied
-      ? 'bg-red-900/40 text-red-400 border-red-800/50'
-      : 'bg-yellow-900/40 text-yellow-400 border-yellow-800/50'
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border whitespace-nowrap ${cls}`}>
-      {label}
-    </span>
+    <span className="font-mono tabular-nums">{dateStr} · {timeStr}</span>
   )
 }
 
 function niceMax(raw) {
   if (raw <= 4) return 4
-  if (raw <= 8) return 8
-  if (raw <= 20) return Math.ceil(raw / 4) * 4
-  if (raw <= 100) return Math.ceil(raw / 10) * 10
-  return Math.ceil(raw / 100) * 100
+  if (raw <= 10) return 10
+  if (raw <= 20) return 20
+  if (raw <= 50) return Math.ceil(raw / 10) * 10
+  if (raw <= 200) return Math.ceil(raw / 20) * 20
+  return Math.ceil(raw / 50) * 50
 }
 
-function buildSmoothPath(points) {
-  if (points.length === 0) return ''
-  if (points.length === 1) return `M${points[0].x},${points[0].y}`
-  let d = `M${points[0].x},${points[0].y}`
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? 0 : i - 1]
-    const p1 = points[i]
-    const p2 = points[i + 1]
-    const p3 = points[i + 2 < points.length ? i + 2 : i + 1]
-    const cp1x = p1.x + (p2.x - p0.x) / 6
-    const cp1y = p1.y + (p2.y - p0.y) / 6
-    const cp2x = p2.x - (p3.x - p1.x) / 6
-    const cp2y = p2.y - (p3.y - p1.y) / 6
-    d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`
+const ARROW_UP = '↑'
+const ARROW_DN = '↓'
+
+// Classifies a meal-rule name into one of three session buckets by keywords / time.
+function classifySession(rule) {
+  const n = String(rule?.name || '').toLowerCase()
+  if (/breakfast|morning/.test(n)) return 'breakfast'
+  if (/lunch|noon|midday/.test(n)) return 'lunch'
+  if (/dinner|supper|evening|night/.test(n)) return 'dinner'
+  const h = parseInt(String(rule?.start_time || '').slice(0, 2), 10)
+  if (Number.isFinite(h)) {
+    if (h < 11) return 'breakfast'
+    if (h < 16) return 'lunch'
+    return 'dinner'
   }
-  return d
+  return null
 }
 
-function LineChart({ slice, max }) {
-  const W = 100
-  const H = 100
-  const n = slice.length
-  const points = slice.map((v, i) => ({
-    x: n === 1 ? W / 2 : (i / (n - 1)) * W,
-    y: H - (v / max) * H,
-  }))
-  const linePath = buildSmoothPath(points)
-  const areaPath = linePath
-    ? `${linePath} L${points[points.length - 1].x},${H} L${points[0].x},${H} Z`
-    : ''
+const SESSION_META = {
+  breakfast: { name: 'Breakfast', color: '#f6a13a', order: 0 },
+  lunch:     { name: 'Lunch',     color: '#5f9bef', order: 1 },
+  dinner:    { name: 'Dinner',    color: '#9b7cf0', order: 2 },
+}
+
+const CAT_COLORS = ['#5f9bef', '#27c39c', '#f6a13a', '#9b7cf0', '#ef7250', '#7eb6ff', '#e8b341']
+
+// ---------- atoms ----------
+const METRIC_COLORS = {
+  blue:   { bg: 'bg-blue-500/10',    text: 'text-blue-400' },
+  violet: { bg: 'bg-violet-500/10',  text: 'text-violet-400' },
+  orange: { bg: 'bg-orange-500/10',  text: 'text-orange-400' },
+  red:    { bg: 'bg-red-500/10',     text: 'text-red-400' },
+  green:  { bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
+  amber:  { bg: 'bg-amber-500/10',   text: 'text-amber-400' },
+}
+
+function Metric({ label, icon, value, suffix, color = 'blue' }) {
+  const c = METRIC_COLORS[color] || METRIC_COLORS.blue
   return (
-    <svg
-      className="absolute inset-0 w-full h-full"
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
+    <div className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-4 flex flex-col gap-3">
+      <div className={`w-9 h-9 rounded-xl ${c.bg} flex items-center justify-center`}>
+        <span className={`material-symbols-outlined ${c.text}`} style={{ fontSize: 20 }}>{icon}</span>
+      </div>
+      <div>
+        <div className="text-2xl font-bold text-slate-100 leading-none mb-1.5 tabular-nums">
+          {value}
+          {suffix && <span className="text-slate-500 text-base font-normal">{suffix}</span>}
+        </div>
+        <div className={`text-xs ${c.text}`}>{label}</div>
+      </div>
+    </div>
+  )
+}
+
+function Card({ children, className = '', pad = true }) {
+  return (
+    <div
+      className={`rounded-2xl border border-outline-variant/40 bg-surface-container-low/70 backdrop-blur-sm ${pad ? 'p-4' : ''} ${className}`}
     >
-      <defs>
-        <linearGradient id="chart-area" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {areaPath && <path d={areaPath} fill="url(#chart-area)" />}
-      {linePath && (
-        <path
-          d={linePath}
-          fill="none"
-          stroke="#3B82F6"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      )}
+      {children}
+    </div>
+  )
+}
+
+function DeltaPill({ value, unit = '%' }) {
+  if (value == null || Number.isNaN(value)) return null
+  const pos = value > 0
+  const neg = value < 0
+  const cls = pos
+    ? 'bg-emerald-500/15 text-emerald-300'
+    : neg
+      ? 'bg-rose-500/15 text-rose-300'
+      : 'bg-slate-500/15 text-slate-300'
+  const arrow = pos ? ARROW_UP : neg ? ARROW_DN : '—'
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[10.5px] font-semibold tabular-nums ${cls}`}>
+      {arrow} {Math.abs(value).toFixed(unit === '%' ? 1 : 0)}{unit}
+    </span>
+  )
+}
+
+function StatKpi({ label, value, unit, delta, deltaUnit = '%', icon, tone = 'default', foot }) {
+  const TONE = {
+    default: { bg: 'bg-slate-500/15',    text: 'text-slate-300' },
+    accent:  { bg: 'bg-blue-500/15',     text: 'text-blue-300' },
+    ok:      { bg: 'bg-emerald-500/15',  text: 'text-emerald-300' },
+    err:     { bg: 'bg-rose-500/15',     text: 'text-rose-300' },
+  }
+  const t = TONE[tone] || TONE.default
+  return (
+    <Card className="flex flex-col gap-2.5 h-full">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`w-6 h-6 rounded-md ${t.bg} ${t.text} flex items-center justify-center`}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>{icon}</span>
+          </span>
+          <span className="text-[11px] font-medium text-slate-400">{label}</span>
+        </div>
+        <DeltaPill value={delta} unit={deltaUnit} />
+      </div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-3xl font-semibold text-slate-100 tracking-tight tabular-nums leading-none">
+          {value}
+        </span>
+        {unit && <span className="text-sm text-slate-400">{unit}</span>}
+      </div>
+      {foot && <div className="text-[11px] text-slate-500 leading-snug">{foot}</div>}
+    </Card>
+  )
+}
+
+function HeroKpi({ served, plan, delta }) {
+  const pct = plan > 0 ? Math.min(100, (served / plan) * 100) : 0
+  const remaining = Math.max(0, plan - served)
+  return (
+    <div
+      className="rounded-2xl p-5 flex flex-col gap-3.5 text-white relative overflow-hidden h-full"
+      style={{
+        background: 'linear-gradient(135deg, #5f9bef 0%, #3a55c4 100%)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.18) inset, 0 14px 40px -10px rgba(58,85,196,0.40)',
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-[11.5px] font-medium opacity-90">Meals served · today</span>
+        {delta != null && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/20 font-mono text-[10.5px] font-semibold tabular-nums">
+            {delta >= 0 ? ARROW_UP : ARROW_DN} {Math.abs(delta).toFixed(1)}%
+          </span>
+        )}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span
+          className="text-[50px] font-medium leading-none tabular-nums"
+          style={{ letterSpacing: '-0.035em' }}
+        >
+          {served.toLocaleString()}
+        </span>
+        <span className="text-sm opacity-80">/ {plan.toLocaleString()} plan</span>
+      </div>
+      <div className="relative h-1.5 bg-white/20 rounded-full overflow-hidden">
+        <div className="absolute inset-y-0 left-0 bg-white rounded-full" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex justify-between text-[11px] opacity-85">
+        <span>{pct.toFixed(1)}% of daily target</span>
+        <span className="tabular-nums">{remaining.toLocaleString()} remaining</span>
+      </div>
+    </div>
+  )
+}
+
+function SessionCard({ session }) {
+  const pct = session.plan > 0 ? Math.min(100, (session.served / session.plan) * 100) : 0
+  const tone = session.status === 'live'
+    ? { c: 'text-emerald-300', bg: 'bg-emerald-500/15', dot: '#22c391' }
+    : session.status === 'closed'
+      ? { c: 'text-slate-400',  bg: 'bg-slate-500/15',   dot: '#5e6985' }
+      : { c: 'text-violet-300', bg: 'bg-violet-500/15',  dot: '#9b7cf0' }
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-sm" style={{ background: session.color }} />
+          <span className="text-sm font-semibold text-slate-100">{session.name}</span>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold uppercase tracking-wider ${tone.bg} ${tone.c}`}
+        >
+          {session.status === 'live' && (
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.dot, boxShadow: `0 0 6px ${tone.dot}` }} />
+          )}
+          {session.status}
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-3xl font-medium leading-none tabular-nums text-slate-100 tracking-tight">
+            {session.served.toLocaleString()}
+          </span>
+          <span className="text-xs text-slate-400">/ {session.plan.toLocaleString()}</span>
+        </div>
+        {session.window && (
+          <span className="font-mono text-[11px] text-slate-500">{session.window}</span>
+        )}
+      </div>
+      <div className="h-1.5 bg-surface-container-highest/50 rounded-full overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: session.color }} />
+      </div>
+      <div className="flex justify-between text-[11px] text-slate-500">
+        <span>{pct.toFixed(0)}% complete</span>
+        {session.denied > 0 && <span className="text-rose-400">{session.denied} denied</span>}
+      </div>
+    </Card>
+  )
+}
+
+// Stacked approved/denied + projected (dashed) hourly chart with NOW marker.
+function HourlyChart({ buckets, nowHour }) {
+  const W = 760, H = 200, padL = 32, padR = 18, padT = 18, padB = 28
+  const innerW = W - padL - padR
+  const innerH = H - padT - padB
+  const totals = buckets.map(b => Math.max((b.approved || 0) + (b.denied || 0), b.projected || 0))
+  const maxV = niceMax(Math.max(...totals, 10))
+  const bw = innerW / buckets.length
+  const y = v => padT + innerH - (v / maxV) * innerH
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full block">
+      {[0, maxV / 2, maxV].map((t, i) => {
+        const yy = y(t)
+        return (
+          <g key={i}>
+            <line x1={padL} y1={yy} x2={W - padR} y2={yy} stroke="rgba(255,255,255,0.06)" strokeDasharray={i === 1 ? '2 4' : ''} />
+            <text x={padL - 8} y={yy + 3} textAnchor="end" fontFamily="ui-monospace, monospace" fontSize="10" fill="#5e6985">{Math.round(t)}</text>
+          </g>
+        )
+      })}
+      {buckets.map((row, i) => {
+        const xb = padL + i * bw + 3
+        const w = bw - 6
+        if (row.future) {
+          const proj = row.projected || 0
+          if (proj <= 0) {
+            return (
+              <text key={row.h} x={xb + w / 2} y={H - 10} textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="10" fill="#3f485e">{row.label}</text>
+            )
+          }
+          const h = (proj / maxV) * innerH
+          return (
+            <g key={row.h}>
+              <rect x={xb} y={y(proj)} width={w} height={h} fill="none" stroke="#3f485e" strokeDasharray="3 2" rx="2" />
+              <text x={xb + w / 2} y={H - 10} textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="10" fill="#5e6985">{row.label}</text>
+            </g>
+          )
+        }
+        const approved = row.approved || 0
+        const denied = row.denied || 0
+        const approvedH = (approved / maxV) * innerH
+        const deniedH = (denied / maxV) * innerH
+        const isNow = row.h === nowHour
+        return (
+          <g key={row.h}>
+            {approved > 0 && (
+              <rect x={xb} y={y(approved + denied)} width={w} height={approvedH} fill="#5f9bef" rx="2" />
+            )}
+            {denied > 0 && (
+              <rect x={xb} y={y(denied)} width={w} height={deniedH} fill="#ef7060" rx="2" />
+            )}
+            <text x={xb + w / 2} y={H - 10} textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="10" fill={isNow ? '#7eb6ff' : '#5e6985'} fontWeight={isNow ? 600 : 400}>{row.label}</text>
+          </g>
+        )
+      })}
+      {(() => {
+        const idx = buckets.findIndex(b => b.h === nowHour)
+        if (idx < 0) return null
+        const xx = padL + idx * bw + bw - 1
+        return (
+          <g>
+            <line x1={xx} y1={padT - 4} x2={xx} y2={padT + innerH + 4} stroke="#7eb6ff" strokeDasharray="2 3" strokeWidth="1.2" />
+            <g transform={`translate(${xx - 22}, ${padT - 4})`}>
+              <rect x="0" y="0" width="40" height="14" rx="7" fill="#7eb6ff" />
+              <text x="20" y="10" textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="700" fill="#071029">NOW</text>
+            </g>
+          </g>
+        )
+      })()}
     </svg>
   )
 }
 
+function CategoryDonut({ items }) {
+  const total = items.reduce((s, m) => s + m.qty, 0)
+  if (total <= 0) {
+    return <div className="text-sm text-slate-500 italic py-4">No meals served yet today.</div>
+  }
+  const r = 44, R = 64, cx = 72, cy = 72
+  let acc = 0
+  return (
+    <div className="flex items-center gap-4 mt-1">
+      <svg viewBox="0 0 144 144" width="144" height="144" className="flex-none">
+        {items.map((m, i) => {
+          const frac = m.qty / total
+          const a0 = acc * 2 * Math.PI - Math.PI / 2
+          acc += frac
+          const a1 = acc * 2 * Math.PI - Math.PI / 2
+          const large = frac > 0.5 ? 1 : 0
+          const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0)
+          const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1)
+          const x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1)
+          const x3 = cx + r * Math.cos(a0), y3 = cy + r * Math.sin(a0)
+          return (
+            <path
+              key={m.key || i}
+              d={`M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 ${large} 0 ${x3} ${y3} Z`}
+              fill={m.color}
+            />
+          )
+        })}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="20" fontWeight="500" fill="#e8eefb" letterSpacing="-0.02em">{total}</text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fontFamily="Inter, sans-serif" fontSize="9.5" fill="#5e6985">total</text>
+      </svg>
+      <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+        {items.map((m, i) => (
+          <div key={m.key || i} className="grid grid-cols-[10px_1fr_auto] gap-2 items-center text-[12px] text-slate-200">
+            <span className="w-2 h-2 rounded-sm" style={{ background: m.color }} />
+            <span className="truncate">{m.name}</span>
+            <span className="text-slate-400 tabular-nums text-[12.5px] font-medium">{m.qty}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function StatusPill({ status }) {
+  const approved = status === 'allowed' || status === 'approved'
+  const denied = status === 'denied'
+  const cls = approved
+    ? 'bg-emerald-500/15 text-emerald-300'
+    : denied
+      ? 'bg-rose-500/15 text-rose-300'
+      : 'bg-amber-500/15 text-amber-300'
+  const label = approved ? 'APPROVED' : denied ? 'DENIED' : (status || 'ERROR').toUpperCase()
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold uppercase tracking-wider ${cls}`}>
+      {label}
+    </span>
+  )
+}
+
+// ---------- main ----------
 export default function Dashboard() {
   const today = new Date().toISOString().slice(0, 10)
   const [siteId, setSiteId] = useState('')
   const siteFilter = siteId ? { site_id: Number(siteId) } : {}
+
   const { data: empPage } = useEmployees({ per_page: 1, ...siteFilter })
   const { data: todayLogsPage } = useLogs({ date: today, per_page: 500, ...siteFilter })
   const { data: recentLogsPage } = useLogs({ per_page: 8, ...siteFilter })
   const { data: rulesPage } = useMealRules({ per_page: 500 })
-  const rules = rulesPage?.data ?? []
+  const { data: quotasData } = useDashboardQuotas(siteFilter)
   const { data: sitesPage } = useSites({ all: 1 })
-  const allSites = sitesPage?.data ?? []
-  const selectedSite = siteId ? allSites.find((s) => s.id === Number(siteId)) : null
+  const { data: categoriesPage } = useMealCategories({ per_page: 50 })
 
-  const totalEmployees = empPage?.meta?.total ?? empPage?.total ?? empPage?.data?.length ?? 0
+  const totalEmployees = empPage?.meta?.total ?? empPage?.total ?? 0
   const todayLogs = todayLogsPage?.data ?? []
   const recentLogs = recentLogsPage?.data ?? []
+  const rules = rulesPage?.data ?? []
+  const allSites = sitesPage?.data ?? []
+  const categories = categoriesPage?.data ?? []
+  const selectedSite = siteId ? allSites.find(s => s.id === Number(siteId)) : null
 
-  const { served, denied, coverage } = useMemo(() => {
-    const s = todayLogs.filter((l) => l.result === 'allowed').length
-    const d = todayLogs.filter((l) => l.result === 'denied').length
-    const cov = totalEmployees > 0 ? Math.round((s / totalEmployees) * 100) : 0
-    return { served: s, denied: d, coverage: cov }
-  }, [todayLogs, totalEmployees])
+  // --- top-line KPIs ---
+  const served = useMemo(() => todayLogs.filter(l => l.result === 'allowed').length, [todayLogs])
+  const denied = useMemo(() => todayLogs.filter(l => l.result === 'denied').length, [todayLogs])
+  const planTotal = quotasData?.today?.total ?? 0
+  const efficiency = todayLogs.length > 0 ? (served / todayLogs.length) * 100 : 0
 
-  const activeRules = rules.filter((r) => r.active).length
-  const totalRules = rules.length
-  const activeSites = allSites.filter((s) => s.active).length
-  const totalSites = allSites.length
-
-  const sessionBreakdown = useMemo(() => {
-    const map = new Map()
-    for (const l of todayLogs) {
-      if (l.result !== 'allowed') continue
-      const name = l.meal_rule?.name || 'Unassigned'
-      map.set(name, (map.get(name) || 0) + 1)
+  // --- session breakdown ---
+  const sessions = useMemo(() => {
+    const buckets = {
+      breakfast: { ...SESSION_META.breakfast, key: 'breakfast', served: 0, plan: 0, denied: 0, windows: [] },
+      lunch:     { ...SESSION_META.lunch,     key: 'lunch',     served: 0, plan: 0, denied: 0, windows: [] },
+      dinner:    { ...SESSION_META.dinner,    key: 'dinner',    served: 0, plan: 0, denied: 0, windows: [] },
     }
-    return [...map.entries()].sort((a, b) => b[1] - a[1])
-  }, [todayLogs])
+    const ruleClass = new Map()
+    for (const r of rules) {
+      const k = classifySession(r)
+      if (!k) continue
+      ruleClass.set(r.id, k)
+      const quota = (quotasData?.today?.by_rule ?? []).find(x => x.meal_rule_id === r.id)
+      if (quota) buckets[k].plan += quota.quantity || 0
+      if (r.start_time && r.end_time) {
+        buckets[k].windows.push(`${String(r.start_time).slice(0, 5)} – ${String(r.end_time).slice(0, 5)}`)
+      }
+    }
+    for (const l of todayLogs) {
+      const k = ruleClass.get(l.meal_rule_id ?? l.meal_rule?.id)
+      if (!k) continue
+      if (l.result === 'allowed') buckets[k].served += 1
+      else if (l.result === 'denied') buckets[k].denied += 1
+    }
+    const now = new Date()
+    const nowH = now.getHours() + now.getMinutes() / 60
+    const out = Object.values(buckets)
+    for (const b of out) {
+      b.window = b.windows[0] || ''
+      const ranges = b.windows.map(w => w.split(' – ').map(t => {
+        const [hh, mm] = t.split(':').map(Number)
+        return hh + (mm || 0) / 60
+      }))
+      const minStart = Math.min(...ranges.map(([s]) => s).filter(Number.isFinite))
+      const maxEnd = Math.max(...ranges.map(([, e]) => e).filter(Number.isFinite))
+      if (!Number.isFinite(minStart) || !Number.isFinite(maxEnd)) {
+        b.status = b.served > 0 ? 'live' : 'upcoming'
+      } else if (nowH < minStart) b.status = 'upcoming'
+      else if (nowH > maxEnd) b.status = 'closed'
+      else b.status = 'live'
+    }
+    return out.sort((a, b) => a.order - b.order)
+  }, [rules, todayLogs, quotasData])
 
-  const HOUR_START = 6
-  const HOUR_END = 22
+  // --- hourly chart buckets (06:00 – 20:00) ---
   const hourly = useMemo(() => {
-    const buckets = Array.from({ length: 24 }, () => 0)
+    const start = 6, end = 20
+    const approvedByH = new Array(24).fill(0)
+    const deniedByH = new Array(24).fill(0)
     for (const l of todayLogs) {
-      if (l.result !== 'allowed') continue
-      const h = new Date(l.scanned_at).getHours()
-      buckets[h] += 1
+      const ts = new Date(l.scanned_at)
+      const h = ts.getHours()
+      if (l.result === 'allowed') approvedByH[h] += 1
+      else if (l.result === 'denied') deniedByH[h] += 1
     }
-    const slice = buckets.slice(HOUR_START, HOUR_END)
-    const rawMax = Math.max(0, ...slice)
-    return { slice, max: niceMax(rawMax) }
+    const now = new Date()
+    const nowHourStr = String(now.getHours()).padStart(2, '0')
+    // Project future hours from same hour last week (cheap proxy: use today's avg of past hours).
+    const out = []
+    for (let h = start; h <= end; h += 1) {
+      const label = String(h).padStart(2, '0')
+      const future = h > now.getHours()
+      out.push({
+        h: label,
+        label,
+        approved: future ? 0 : approvedByH[h],
+        denied: future ? 0 : deniedByH[h],
+        projected: 0,
+        future,
+      })
+    }
+    return { buckets: out, nowHour: nowHourStr }
   }, [todayLogs])
 
-  const hourLabels = useMemo(() => {
-    const out = []
-    for (let h = HOUR_START; h <= HOUR_END; h += 4) out.push(`${String(h).padStart(2, '0')}:00`)
-    return out
-  }, [])
-
-  const siteBreakdown = useMemo(() => {
+  // --- meal categories donut ---
+  const categoryItems = useMemo(() => {
+    // Group served logs by category if backend exposes meal_rule.category; otherwise group by meal_rule name.
     const counts = new Map()
-    let unassigned = 0
     for (const l of todayLogs) {
       if (l.result !== 'allowed') continue
-      const site = l.employee?.site
-      if (site) counts.set(site.id, (counts.get(site.id) || 0) + 1)
-      else unassigned += 1
+      const catName = l.meal_rule?.category?.name
+        || l.meal_rule?.meal_category?.name
+        || l.meal_rule?.name
+        || 'Other'
+      counts.set(catName, (counts.get(catName) || 0) + 1)
     }
-    const rows = allSites.map((s) => ({
-      code: s.site_code,
-      name: s.name,
-      count: counts.get(s.id) || 0,
+    const byName = new Map(categories.map(c => [c.name, c]))
+    const arr = [...counts.entries()].map(([name, qty], i) => ({
+      key: name,
+      name,
+      qty,
+      color: byName.get(name)?.color || CAT_COLORS[i % CAT_COLORS.length],
     }))
-    if (unassigned > 0) rows.push({ code: '—', name: 'Unassigned', count: unassigned })
-    rows.sort((a, b) => (b.count - a.count) || a.code.localeCompare(b.code))
-    return rows
-  }, [todayLogs, allSites])
-  const siteTotal = siteBreakdown.reduce((sum, r) => sum + r.count, 0)
+    return arr.sort((a, b) => b.qty - a.qty)
+  }, [todayLogs, categories])
+
+  // --- site breakdown ---
+  const siteRows = useMemo(() => {
+    const counts = new Map()
+    const denyCounts = new Map()
+    for (const l of todayLogs) {
+      const sid = l.employee?.site?.id
+      if (!sid) continue
+      if (l.result === 'allowed') counts.set(sid, (counts.get(sid) || 0) + 1)
+      else if (l.result === 'denied') denyCounts.set(sid, (denyCounts.get(sid) || 0) + 1)
+    }
+    const ruleIds = new Set(rules.map(r => r.id))
+    const planByRule = new Map(
+      (quotasData?.today?.by_rule ?? []).map(q => [q.meal_rule_id, q.quantity || 0])
+    )
+    const totalPlan = [...planByRule.values()].reduce((a, b) => a + b, 0)
+    return allSites.map(s => {
+      // Plan per site = (site weight by employee count) × total plan, falling back to even split.
+      const plan = s.daily_plan ?? Math.max(0, Math.round(totalPlan / Math.max(1, allSites.length)))
+      return {
+        id: s.id,
+        code: s.site_code,
+        name: s.name,
+        served: counts.get(s.id) || 0,
+        plan,
+        denied: denyCounts.get(s.id) || 0,
+      }
+    }).sort((a, b) => b.served - a.served)
+  }, [todayLogs, allSites, rules, quotasData])
 
   return (
-    <>
-      <header className="flex justify-between items-center mb-lg gap-md">
+    <div className="relative">
+      {/* Header row */}
+      <header className="flex flex-wrap items-end justify-between gap-4 mb-lg">
         <div>
-          <h1 className="font-h1 text-h1 text-slate-100">Executive Dashboard</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-h1 text-h1 text-slate-100">Executive Dashboard</h1>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-mono text-[10.5px] font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px #22c391' }} />
+              Live
+            </span>
+          </div>
           <p className="font-body-md text-body-md text-slate-400 mt-1">
             {selectedSite
               ? <>Showing <span className="text-slate-200 font-medium">{selectedSite.name}</span> <span className="font-mono text-slate-500">({selectedSite.site_code})</span>.</>
-              : 'Real-time overview of meal distribution metrics.'}
+              : <>Real-time overview · <LiveClock /></>}
           </p>
-        </div>
-        <div className="flex-1 flex justify-center">
-          <LiveClock />
         </div>
         <Select
           value={siteId}
@@ -255,202 +545,164 @@ export default function Dashboard() {
           className="w-64"
           options={[
             { value: '', label: 'All sites' },
-            ...allSites.map((s) => ({ value: String(s.id), label: `${s.site_code} — ${s.name}` })),
+            ...allSites.map(s => ({ value: String(s.id), label: `${s.site_code} — ${s.name}` })),
           ]}
         />
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-md mb-lg">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-md mb-md">
         <Metric
-          label="Active Emp."
+          label="Active Employees"
           icon="badge"
           value={totalEmployees.toLocaleString()}
-          trend={{ icon: 'group', label: 'Registered', color: 'text-slate-400' }}
+          color="violet"
         />
         <Metric
           label="Meals Served"
           icon="restaurant"
           value={served.toLocaleString()}
-          trend={{ icon: 'arrow_upward', label: `${coverage}% cov.`, color: 'text-green-400' }}
-          progress={coverage}
+          color="blue"
         />
         <Metric
           label="Access Denied"
           icon="block"
           value={denied.toLocaleString()}
-          trend={{ icon: 'arrow_downward', label: 'today', color: 'text-red-400' }}
-          accentClass="bg-red-500/5"
-        />
-        <Metric
-          label="Sites"
-          icon="apartment"
-          value={activeSites}
-          suffix={`/${totalSites}`}
-          trend={{
-            label: totalSites ? `${Math.round((activeSites / totalSites) * 100)}% active` : '—',
-            color: 'text-slate-400',
-          }}
+          color="red"
         />
         <Metric
           label="Efficiency"
           icon="speed"
-          value={todayLogs.length > 0 ? `${Math.round((served / todayLogs.length) * 100)}%` : '—'}
-          trend={{ icon: 'arrow_upward', label: 'approval rate', color: 'text-green-400' }}
-          accentClass="bg-green-500/5"
+          value={todayLogs.length > 0 ? `${efficiency.toFixed(1)}%` : '—'}
+          color="orange"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-md">
-        <section className="lg:col-span-2 lg:row-span-1 bg-surface-container-low border border-outline-variant/50 rounded-lg flex flex-col p-md min-h-[300px]">
-          <div className="flex justify-between items-center mb-md">
-            <h3 className="font-h3 text-h3 text-slate-200">Distribution Velocity</h3>
-            <div className="flex bg-surface-container-high rounded p-1 border border-outline-variant/30">
-              <button className="px-3 py-1 rounded font-label-md text-label-md bg-surface-variant text-slate-100 shadow-sm">1 Day</button>
-              <button className="px-3 py-1 rounded font-label-md text-label-md text-slate-400 hover:text-slate-200">1 Week</button>
-              <button className="px-3 py-1 rounded font-label-md text-label-md text-slate-400 hover:text-slate-200">1 Month</button>
-            </div>
-          </div>
-          <div className="flex-1 min-h-0 relative flex items-end w-full">
-            <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-slate-500 text-[11px] pb-6 pr-2 text-right w-8">
-              <span>{hourly.max}</span>
-              <span>{Math.round(hourly.max * 0.75)}</span>
-              <span>{Math.round(hourly.max * 0.5)}</span>
-              <span>{Math.round(hourly.max * 0.25)}</span>
-              <span>0</span>
-            </div>
-            <div className="absolute inset-0 ml-8 mb-6 border-b border-outline-variant/30 flex flex-col justify-between pointer-events-none">
-              <div className="border-t border-outline-variant/10 h-0 w-full" />
-              <div className="border-t border-outline-variant/10 h-0 w-full" />
-              <div className="border-t border-outline-variant/10 h-0 w-full" />
-              <div className="border-t border-outline-variant/10 h-0 w-full" />
-              <div className="h-0 w-full" />
-            </div>
-            <div className="absolute top-0 left-8 right-0 bottom-6">
-              <LineChart slice={hourly.slice} max={hourly.max} />
-            </div>
-            <div className="absolute bottom-0 left-8 right-0 flex justify-between text-slate-500 text-[11px]">
-              {hourLabels.map((l) => <span key={l}>{l}</span>)}
-            </div>
-          </div>
-        </section>
+      {/* Session strip */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-md mb-md">
+        {sessions.map(s => <SessionCard key={s.key} session={s} />)}
+      </div>
 
-        <section className="lg:col-span-1 lg:row-span-1 bg-surface-container-low border border-outline-variant/50 rounded-lg flex flex-col overflow-hidden min-h-[300px]">
-          <div className="p-md border-b border-outline-variant/30 bg-surface-container-highest/30">
-            <h3 className="font-h3 text-h3 text-slate-200">Site Breakdown</h3>
-            <p className="font-label-md text-label-md text-slate-400 mt-1">Meals served by site today.</p>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {siteBreakdown.length === 0 ? (
-              <div className="px-4 py-6 text-center text-slate-500 text-sm">No meals served yet today.</div>
-            ) : (
-              <ul className="divide-y divide-outline-variant/20">
-                {siteBreakdown.map((row) => {
-                  const pct = siteTotal > 0 ? Math.round((row.count / siteTotal) * 100) : 0
-                  return (
-                    <li key={`${row.code}|${row.name}`} className="px-4 py-3 hover:bg-surface-container-highest/10 transition-colors">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-baseline gap-2 min-w-0">
-                          <span className="font-mono text-[11px] text-slate-500">{row.code}</span>
-                          <span className="text-slate-200 truncate">{row.name}</span>
-                        </div>
-                        <span className="font-mono text-slate-300 whitespace-nowrap ml-2">
-                          {row.count.toLocaleString()} <span className="text-slate-500 text-xs">({pct}%)</span>
-                        </span>
-                      </div>
-                      <div className="h-1.5 rounded bg-surface-container-highest/60 overflow-hidden">
-                        <div className="h-full bg-blue-500/80" style={{ width: `${pct}%` }} />
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </section>
+      {/* Row: scans by hour + categories */}
+      <div className="grid grid-cols-12 gap-md mb-md">
+        <div className="col-span-12 lg:col-span-8">
+          <Card className="flex flex-col gap-3 h-full">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-h3 text-h3 text-slate-100">Scans by hour</h3>
+                <p className="text-[11.5px] text-slate-500 mt-0.5">Approved & denied — across today.</p>
+              </div>
+              <div className="flex gap-3.5 text-[10.5px] text-slate-400">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#5f9bef' }} />Approved</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: '#ef7060' }} />Denied</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm border border-dashed" style={{ borderColor: '#3f485e' }} />Projected</span>
+              </div>
+            </div>
+            <div className="flex-1 min-h-[212px] h-[212px]">
+              <HourlyChart buckets={hourly.buckets} nowHour={hourly.nowHour} />
+            </div>
+          </Card>
+        </div>
+        <div className="col-span-12 lg:col-span-4">
+          <Card className="flex flex-col gap-2 h-full">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-h3 text-h3 text-slate-100">Meal categories</h3>
+                <p className="text-[11.5px] text-slate-500 mt-0.5">Served today · across all sites.</p>
+              </div>
+              {categoryItems.length > 0 && (
+                <span className="font-mono text-[10.5px] text-blue-300 bg-blue-500/15 px-2 py-1 rounded-md">{categoryItems.length} cats</span>
+              )}
+            </div>
+            <CategoryDonut items={categoryItems} />
+          </Card>
+        </div>
+      </div>
 
-        <section className="lg:col-span-2 lg:row-span-1 bg-surface-container-low border border-outline-variant/50 rounded-lg flex flex-col overflow-hidden min-h-[300px]">
-          <div className="p-md border-b border-outline-variant/30 bg-surface-container-highest/30 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <h3 className="font-h3 text-h3 text-slate-200">Live Scan Event Log</h3>
-              <span className="flex h-2 w-2 relative ml-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+      {/* Row: site table + scan log */}
+      <div className="grid grid-cols-12 gap-md">
+        <div className="col-span-12 lg:col-span-6">
+          <Card className="flex flex-col gap-3 h-full">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-h3 text-h3 text-slate-100">Site breakdown</h3>
+                <p className="text-[11.5px] text-slate-500 mt-0.5">Meals served by camp · today.</p>
+              </div>
+              <a href="/sites" className="text-[11.5px] text-slate-400 hover:text-slate-200 border border-outline-variant/40 rounded-md px-2 py-1">View all →</a>
+            </div>
+            <div className="flex flex-col -mx-1">
+              <div className="grid grid-cols-[64px_1fr_60px_60px_80px_36px] px-1 pb-2 text-[10.5px] uppercase tracking-wider text-slate-500 border-b border-outline-variant/30">
+                <span>Camp</span><span>Site</span>
+                <span className="text-right">Served</span>
+                <span className="text-right">Plan</span>
+                <span className="text-right">Progress</span>
+                <span className="text-right">Deny</span>
+              </div>
+              {siteRows.length === 0 && (
+                <div className="px-1 py-6 text-center text-slate-500 text-sm">No sites configured.</div>
+              )}
+              {siteRows.slice(0, 9).map(s => {
+                const pct = s.plan > 0 ? Math.min(100, (s.served / s.plan) * 100) : 0
+                const tone = pct > 80 ? '#22c391' : pct > 50 ? '#e8b341' : '#ef7060'
+                return (
+                  <div key={s.id} className="grid grid-cols-[64px_1fr_60px_60px_80px_36px] items-center px-1 py-2 border-b border-outline-variant/20 text-[12.5px] text-slate-200">
+                    <span className="font-mono text-[10.5px] text-slate-500 truncate">{s.code}</span>
+                    <span className="truncate">{s.name}</span>
+                    <span className="text-right font-medium tabular-nums">{s.served}</span>
+                    <span className="text-right font-mono text-[11px] text-slate-500 tabular-nums">{s.plan}</span>
+                    <span className="flex items-center justify-end gap-1.5">
+                      <span className="w-[42px] h-1 rounded-full bg-surface-container-highest/50 overflow-hidden">
+                        <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: tone }} />
+                      </span>
+                      <span className="font-mono text-[10.5px] text-slate-500 w-7 text-right">{pct.toFixed(0)}%</span>
+                    </span>
+                    <span className={`text-right font-mono text-[11px] tabular-nums ${s.denied > 0 ? 'text-rose-400' : 'text-slate-500'}`}>{s.denied}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        </div>
+
+        <div className="col-span-12 lg:col-span-6">
+          <Card className="flex flex-col gap-3 h-full">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-h3 text-h3 text-slate-100">Live scan log</h3>
+                <p className="text-[11.5px] text-slate-500 mt-0.5">Realtime · last {recentLogs.length} event{recentLogs.length === 1 ? '' : 's'}.</p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-emerald-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px #22c391' }} />
+                tailing
               </span>
             </div>
-            <a href="/logs" className="text-label-md font-medium text-blue-400 hover:text-blue-300">View All</a>
-          </div>
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-left text-body-md whitespace-nowrap">
-              <thead className="bg-surface-container-highest/10 text-label-sm text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Timestamp</th>
-                  <th className="px-4 py-2 font-medium">Employee</th>
-                  <th className="px-4 py-2 font-medium">ID</th>
-                  <th className="px-4 py-2 font-medium">Session</th>
-                  <th className="px-4 py-2 font-medium text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/10 text-sm">
-                {recentLogs.length === 0 && (
-                  <tr><td colSpan="5" className="px-4 py-6 text-center text-slate-500">No recent scan events.</td></tr>
-                )}
-                {recentLogs.map((log, idx) => (
-                  <tr
-                    key={log.id}
-                    className={idx === 0 ? 'bg-blue-500/5 hover:bg-blue-500/10 transition-colors' : 'hover:bg-surface-container-highest/10 transition-colors'}
-                  >
-                    <td className="px-4 py-2 font-mono text-slate-400 text-xs">
-                      {new Date(log.scanned_at).toLocaleTimeString()}
-                    </td>
-                    <td className="px-4 py-2 text-slate-200 font-medium">
-                      {log.employee?.name || <span className="text-slate-500 italic">unknown</span>}
-                    </td>
-                    <td className="px-4 py-2 font-mono text-slate-500">
-                      {log.employee?.employee_code || log.scanned_code}
-                    </td>
-                    <td className="px-4 py-2 text-slate-400">{log.meal_rule?.name || '—'}</td>
-                    <td className="px-4 py-2 text-right">
-                      <StatusBadge result={log.result} reason={log.reason} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            <div className="flex flex-col -mx-1">
+              <div className="grid grid-cols-[82px_1fr_96px_80px_84px] px-1 pb-2 text-[10.5px] uppercase tracking-wider text-slate-500 border-b border-outline-variant/30">
+                <span>Timestamp</span>
+                <span>Employee</span>
+                <span>ID</span>
+                <span>Site</span>
+                <span className="text-right">Status</span>
+              </div>
+              {recentLogs.length === 0 && (
+                <div className="px-1 py-6 text-center text-slate-500 text-sm">No recent scan events.</div>
+              )}
+              {recentLogs.map(log => (
+                <div key={log.id} className="grid grid-cols-[82px_1fr_96px_80px_84px] items-center px-1 py-2 border-b border-outline-variant/20 text-[12px] text-slate-200">
+                  <span className="font-mono text-[11px] text-slate-500 tabular-nums">
+                    {new Date(log.scanned_at).toLocaleTimeString([], { hour12: false })}
+                  </span>
+                  <span className="truncate">{log.employee?.name || <span className="italic text-slate-500">unknown</span>}</span>
+                  <span className="font-mono text-[10.5px] text-slate-400 truncate">{log.employee?.employee_code || log.scanned_code}</span>
+                  <span className="text-slate-400 truncate text-[11.5px]">{log.employee?.site?.name || '—'}</span>
+                  <span className="text-right"><StatusPill status={log.result} /></span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
 
-        <section className="lg:col-span-1 lg:row-span-1 bg-surface-container-low border border-outline-variant/50 rounded-lg flex flex-col overflow-hidden min-h-[300px]">
-          <div className="p-md border-b border-outline-variant/30 bg-surface-container-highest/30">
-            <h3 className="font-h3 text-h3 text-slate-200">Session Breakdown</h3>
-            <p className="font-label-md text-label-md text-slate-400 mt-1">Meals served by session today.</p>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <table className="w-full text-left text-body-md">
-              <thead className="bg-surface-container-highest/20 text-label-sm text-slate-400 uppercase tracking-wider sticky top-0">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Session</th>
-                  <th className="px-4 py-3 font-medium text-right">Served</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/20">
-                {sessionBreakdown.length === 0 && (
-                  <tr>
-                    <td colSpan="2" className="px-4 py-6 text-center text-slate-500 text-sm">
-                      No meals served yet today.
-                    </td>
-                  </tr>
-                )}
-                {sessionBreakdown.map(([name, count]) => (
-                  <tr key={name} className="hover:bg-surface-container-highest/10 transition-colors">
-                    <td className="px-4 py-3 text-slate-200">{name}</td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-300">{count.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
       </div>
-    </>
+    </div>
   )
 }

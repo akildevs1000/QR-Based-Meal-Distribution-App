@@ -22,12 +22,13 @@ class PermissionSeeder extends Seeder
                 ['key' => 'employees.create', 'label' => 'Create employees'],
                 ['key' => 'employees.update', 'label' => 'Update employees'],
                 ['key' => 'employees.delete', 'label' => 'Delete employees'],
+                ['key' => 'employees.import', 'label' => 'Import employees'],
             ],
-            'Distribution Points' => [
-                ['key' => 'sites.view',   'label' => 'View distribution points'],
-                ['key' => 'sites.create', 'label' => 'Create distribution points'],
-                ['key' => 'sites.update', 'label' => 'Update distribution points'],
-                ['key' => 'sites.delete', 'label' => 'Delete distribution points'],
+            'Sites' => [
+                ['key' => 'sites.view',   'label' => 'View sites'],
+                ['key' => 'sites.create', 'label' => 'Create sites'],
+                ['key' => 'sites.update', 'label' => 'Update sites'],
+                ['key' => 'sites.delete', 'label' => 'Delete sites'],
             ],
             'Suppliers' => [
                 ['key' => 'suppliers.view',   'label' => 'View suppliers'],
@@ -64,6 +65,11 @@ class PermissionSeeder extends Seeder
                 ['key' => 'complaints.create', 'label' => 'Create complaints'],
                 ['key' => 'complaints.update', 'label' => 'Update complaints'],
                 ['key' => 'complaints.delete', 'label' => 'Delete complaints'],
+            ],
+            'Meal Remarks' => [
+                ['key' => 'meal-remarks.view',   'label' => 'View meal remarks'],
+                ['key' => 'meal-remarks.create', 'label' => 'Create meal remarks'],
+                ['key' => 'meal-remarks.delete', 'label' => 'Delete meal remarks'],
             ],
             'Reports' => [
                 ['key' => 'reports.view', 'label' => 'View reports'],

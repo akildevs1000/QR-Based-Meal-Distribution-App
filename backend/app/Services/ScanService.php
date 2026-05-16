@@ -22,6 +22,7 @@ class ScanService
     public const REASON_ALREADY_RECEIVED = 'already_received';
     public const REASON_INVALID_QR = 'invalid_qr';
     public const REASON_WRONG_SITE = 'wrong_site';
+    public const REASON_EXPIRED = 'expired';
 
     public function decide(
         ?string $code,
@@ -44,6 +45,10 @@ class ScanService
 
         if (!$employee->active) {
             return $this->logAndReturn($employee, null, $code, self::DENIED, self::REASON_INACTIVE, $now, $ctx);
+        }
+
+        if ($employee->expiry_date && $employee->expiry_date->lt($now->copy()->startOfDay())) {
+            return $this->logAndReturn($employee, null, $code, self::DENIED, self::REASON_EXPIRED, $now, $ctx);
         }
 
         if (!$employee->meal_eligibility) {

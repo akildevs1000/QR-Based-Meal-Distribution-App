@@ -3,15 +3,17 @@ import {
   useSuppliers, useSupplier, useSaveSupplier, useDeleteSupplier,
   useUploadSupplierDocument, useDeleteSupplierDocument,
   useSites,
+  useSupplierUsers, useSaveSupplierUser, useResetSupplierUserPassword, useDeleteSupplierUser,
 } from '../api/queries'
 import { api } from '../api/client'
 import Pagination from '../components/Pagination'
 import Select from '../components/Select'
 import RowMenu from '../components/RowMenu'
 import Checkbox from '../components/Checkbox'
+import DatePicker from '../components/DatePicker'
 
 const inputCls =
-  'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all'
 
 const apiOrigin = (import.meta.env.VITE_API_BASE || 'http://localhost:8000/api').replace(/\/api\/?$/, '')
 const fileUrl = (p) => (p ? `${apiOrigin}/storage/${p}` : null)
@@ -77,7 +79,7 @@ export default function Suppliers() {
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" style={{ fontSize: 18 }}>search</span>
             <input placeholder="Search suppliers…" value={q} onChange={e => setQ(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/50 rounded pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64" />
+              className="bg-surface-container-high/50 border border-outline-variant/30 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all w-64" />
           </div>
           <Select
             value={statusFilter}
@@ -90,7 +92,7 @@ export default function Suppliers() {
             ]}
           />
           <button onClick={openNew}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-colors">
+            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 whitespace-nowrap transition-colors">
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>Add supplier
           </button>
         </div>
@@ -156,7 +158,7 @@ function SupplierForm({ editing, setEditing, sites, onSave, onCancel, saving }) 
   }
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-2xl space-y-md max-h-[90vh] overflow-y-auto">
+      <form onSubmit={onSave} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-2xl space-y-md max-h-[90vh] overflow-y-auto">
         <div>
           <h2 className="text-h3 font-h3 text-slate-100">{editing.id ? 'Edit' : 'New'} Supplier</h2>
           <p className="text-body-md text-slate-400 mt-1">Basic details, contact info, and location assignments.</p>
@@ -185,11 +187,11 @@ function SupplierForm({ editing, setEditing, sites, onSave, onCancel, saving }) 
           </div>
           <div>
             <label className="block text-label-md text-slate-300 mb-1.5">Start date</label>
-            <input type="date" value={editing.start_date || ''} onChange={e => setEditing({ ...editing, start_date: e.target.value })} className={inputCls} />
+            <DatePicker value={editing.start_date || ''} onChange={(v) => setEditing({ ...editing, start_date: v })} placeholder="Pick a date" />
           </div>
           <div>
             <label className="block text-label-md text-slate-300 mb-1.5">End date</label>
-            <input type="date" value={editing.end_date || ''} onChange={e => setEditing({ ...editing, end_date: e.target.value })} className={inputCls} />
+            <DatePicker value={editing.end_date || ''} onChange={(v) => setEditing({ ...editing, end_date: v })} placeholder="Pick a date" />
           </div>
         </div>
         <div className="grid grid-cols-3 gap-md">
@@ -216,7 +218,7 @@ function SupplierForm({ editing, setEditing, sites, onSave, onCancel, saving }) 
         </div>
         <div>
           <label className="block text-label-md text-slate-300 mb-1.5">Assigned locations</label>
-          <div className="bg-surface-container-lowest border border-outline-variant/50 rounded p-md grid grid-cols-2 gap-sm max-h-48 overflow-y-auto">
+          <div className="bg-surface-container-high/50 border border-outline-variant/30 rounded-lg p-md grid grid-cols-2 gap-sm max-h-48 overflow-y-auto">
             {sites.length === 0 && <div className="text-slate-500 text-sm col-span-2">No sites available.</div>}
             {sites.map(s => (
               <Checkbox
@@ -231,8 +233,8 @@ function SupplierForm({ editing, setEditing, sites, onSave, onCancel, saving }) 
           </div>
         </div>
         <div className="flex justify-end gap-sm pt-sm">
-          <button type="button" onClick={onCancel} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-          <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+          <button type="submit" disabled={saving} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -256,7 +258,7 @@ function SupplierDetailModal({ id, onClose, onEdit }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div onClick={e => e.stopPropagation()} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         {isLoading || !supplier ? <div className="p-8 text-center text-slate-500">Loading…</div> : (
           <>
             <div className="flex items-start justify-between mb-md">
@@ -290,6 +292,8 @@ function SupplierDetailModal({ id, onClose, onEdit }) {
                 ))}
               </div>
             </section>
+
+            <SupplierUsersSection supplierId={id} />
 
             <section className="mb-lg">
               <h3 className="text-label-sm text-slate-400 uppercase tracking-wider mb-2">Meal assignments</h3>
@@ -341,7 +345,7 @@ function SupplierDetailModal({ id, onClose, onEdit }) {
                 </div>
                 <div>
                   <label className="block text-label-md text-slate-300 mb-1">Expires</label>
-                  <input type="date" value={docForm.expires_at} onChange={e => setDocForm({ ...docForm, expires_at: e.target.value })} className={inputCls} />
+                  <DatePicker value={docForm.expires_at} onChange={(v) => setDocForm({ ...docForm, expires_at: v })} placeholder="Pick a date" />
                 </div>
                 <div>
                   <label className="block text-label-md text-slate-300 mb-1">File</label>
@@ -349,19 +353,188 @@ function SupplierDetailModal({ id, onClose, onEdit }) {
                     className="block text-sm text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-600/20 file:text-blue-300 hover:file:bg-blue-600/30" />
                 </div>
                 <button type="submit" disabled={upload.isPending || !docForm.file || !docForm.name}
-                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60">
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60">
                   {upload.isPending ? 'Uploading…' : 'Upload'}
                 </button>
               </form>
             </section>
 
             <div className="flex justify-end gap-sm pt-lg mt-md border-t border-outline-variant/30">
-              <button onClick={onClose} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Close</button>
-              <button onClick={() => onEdit(supplier)} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors">Edit</button>
+              <button onClick={onClose} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Close</button>
+              <button onClick={() => onEdit(supplier)} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 transition-colors">Edit</button>
             </div>
           </>
         )}
       </div>
     </div>
+  )
+}
+
+const ROLE_OPTIONS = [
+  { value: 'rep',        label: 'Representative' },
+  { value: 'supervisor', label: 'Supervisor' },
+  { value: 'admin',      label: 'Admin' },
+]
+
+const blankUser = () => ({ name: '', email: '', password: '', role: 'rep', active: true })
+
+function SupplierUsersSection({ supplierId }) {
+  const { data, isLoading } = useSupplierUsers(supplierId)
+  const save = useSaveSupplierUser()
+  const reset = useResetSupplierUserPassword()
+  const del = useDeleteSupplierUser()
+
+  const [editing, setEditing] = useState(null) // null | blank-new-user | existing-row
+  const [resetResult, setResetResult] = useState(null) // { email, password }
+  const [err, setErr] = useState(null)
+
+  const users = data?.data ?? []
+
+  const onSave = async (ev) => {
+    ev.preventDefault()
+    setErr(null)
+    try {
+      const payload = { supplierId, ...editing }
+      if (payload.id && !payload.password) delete payload.password
+      await save.mutateAsync(payload)
+      setEditing(null)
+    } catch (e) {
+      const errors = e?.response?.data?.errors
+      const first = errors ? Object.values(errors)[0]?.[0] : null
+      setErr(first || e?.response?.data?.message || 'Save failed')
+    }
+  }
+
+  const onReset = async (u) => {
+    if (!confirm(`Reset password for ${u.email}? A new password will be generated.`)) return
+    setErr(null)
+    try {
+      const res = await reset.mutateAsync({ id: u.id })
+      setResetResult({ email: u.email, password: res.password })
+    } catch (e) {
+      setErr(e?.response?.data?.message || 'Reset failed')
+    }
+  }
+
+  const onToggleActive = async (u) => {
+    try {
+      await save.mutateAsync({ supplierId, id: u.id, active: !u.active })
+    } catch (e) {
+      setErr(e?.response?.data?.message || 'Update failed')
+    }
+  }
+
+  return (
+    <section className="mb-lg">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-label-sm text-slate-400 uppercase tracking-wider">Login users</h3>
+        <button
+          onClick={() => { setErr(null); setEditing(blankUser()) }}
+          className="text-xs px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 font-semibold flex items-center gap-1"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span>Add user
+        </button>
+      </div>
+
+      {resetResult && (
+        <div className="mb-sm bg-amber-900/20 border border-amber-700/50 rounded px-3 py-2 text-xs text-amber-200">
+          <div className="font-semibold mb-0.5">New password for {resetResult.email}</div>
+          <div className="font-mono select-all bg-black/30 inline-block px-2 py-0.5 rounded">{resetResult.password}</div>
+          <button onClick={() => setResetResult(null)} className="ml-2 text-amber-300/60 hover:text-amber-300">dismiss</button>
+        </div>
+      )}
+
+      <div className="border border-outline-variant/40 rounded overflow-hidden">
+        {isLoading ? (
+          <div className="p-4 text-center text-slate-500 text-sm">Loading…</div>
+        ) : users.length === 0 && !editing ? (
+          <div className="p-4 text-center text-slate-500 text-sm">No login users. Click “Add user” to grant portal access.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-surface-container-highest/30 text-label-sm text-slate-400 uppercase tracking-wider">
+              <tr>
+                <th className="px-3 py-2 text-left">Name</th>
+                <th className="px-3 py-2 text-left">Email</th>
+                <th className="px-3 py-2 text-left">Role</th>
+                <th className="px-3 py-2 text-left">Last login</th>
+                <th className="px-3 py-2 text-left">Status</th>
+                <th className="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant/20">
+              {users.map(u => (
+                <tr key={u.id} className="hover:bg-surface-container-highest/10">
+                  <td className="px-3 py-2 text-slate-200">{u.name}</td>
+                  <td className="px-3 py-2 text-slate-300 font-mono text-xs">{u.email}</td>
+                  <td className="px-3 py-2 text-slate-300 capitalize">{u.role}</td>
+                  <td className="px-3 py-2 text-slate-400 font-mono text-xs">{u.last_login_at ? String(u.last_login_at).replace('T', ' ').slice(0, 16) : '—'}</td>
+                  <td className="px-3 py-2">
+                    <span className={'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ' + (u.active ? 'bg-green-900/40 text-green-400 border-green-800/50' : 'bg-slate-900/40 text-slate-400 border-slate-700/50')}>
+                      {u.active ? 'ACTIVE' : 'DISABLED'}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="inline-flex gap-1">
+                      <button onClick={() => { setErr(null); setEditing({ ...u, password: '' }) }} title="Edit"
+                        className="p-1 rounded hover:bg-surface-container-highest/40 text-slate-400 hover:text-slate-200">
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                      </button>
+                      <button onClick={() => onReset(u)} title="Reset password"
+                        className="p-1 rounded hover:bg-surface-container-highest/40 text-slate-400 hover:text-slate-200">
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>lock_reset</span>
+                      </button>
+                      <button onClick={() => onToggleActive(u)} title={u.active ? 'Disable' : 'Enable'}
+                        className="p-1 rounded hover:bg-surface-container-highest/40 text-slate-400 hover:text-slate-200">
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{u.active ? 'block' : 'check_circle'}</span>
+                      </button>
+                      <button onClick={() => { if (confirm(`Delete ${u.email}?`)) del.mutate({ id: u.id, supplierId }) }} title="Delete"
+                        className="p-1 rounded hover:bg-red-900/30 text-red-400">
+                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {editing && (
+        <form onSubmit={onSave} className="mt-sm bg-surface-container-lowest/50 border border-outline-variant/40 rounded p-md grid grid-cols-2 gap-sm">
+          <div className="col-span-2 text-label-sm text-slate-400 uppercase tracking-wider">{editing.id ? 'Edit user' : 'New user'}</div>
+          <div>
+            <label className="block text-label-md text-slate-300 mb-1">Name</label>
+            <input required value={editing.name || ''} onChange={e => setEditing({ ...editing, name: e.target.value })} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-label-md text-slate-300 mb-1">Email</label>
+            <input required type="email" value={editing.email || ''} onChange={e => setEditing({ ...editing, email: e.target.value })} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-label-md text-slate-300 mb-1">Role</label>
+            <Select value={editing.role || 'rep'} onChange={(v) => setEditing({ ...editing, role: v })} options={ROLE_OPTIONS} />
+          </div>
+          {!editing.id && (
+            <div>
+              <label className="block text-label-md text-slate-300 mb-1">Password (min 8)</label>
+              <input required type="text" value={editing.password || ''} onChange={e => setEditing({ ...editing, password: e.target.value })} className={`${inputCls} font-mono`} />
+            </div>
+          )}
+          {editing.id && (
+            <div className="flex items-end">
+              <Checkbox checked={!!editing.active} onChange={(v) => setEditing({ ...editing, active: v })}>Active</Checkbox>
+            </div>
+          )}
+          {err && <div className="col-span-2 text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded px-2 py-1.5">{err}</div>}
+          <div className="col-span-2 flex justify-end gap-sm">
+            <button type="button" onClick={() => { setEditing(null); setErr(null) }} className="px-3 py-1.5 rounded border border-outline-variant/50 text-xs text-slate-300 hover:bg-surface-container-highest/40">Cancel</button>
+            <button type="submit" disabled={save.isPending} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60">
+              {save.isPending ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
   )
 }

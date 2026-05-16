@@ -7,7 +7,7 @@ import Select from '../components/Select'
 import Checkbox from '../components/Checkbox'
 
 const inputCls =
-  'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all'
 
 export default function MealCategories() {
   const { data: cuisinesData, isLoading } = useCuisines({ all: 1, with_categories: 1 })
@@ -31,7 +31,7 @@ export default function MealCategories() {
           <p className="font-body-md text-body-md text-slate-400 mt-1">Cuisines and their meal categories (Veg Rice, Non-Veg Chapati, etc).</p>
         </div>
         <button onClick={() => setEditingCuisine({ name: '', active: true })}
-          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 transition-colors">
+          className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 transition-colors">
           <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>Add cuisine
         </button>
       </header>
@@ -83,7 +83,7 @@ export default function MealCategories() {
 
       {editingCuisine && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={onSaveCuisine} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-sm space-y-md">
+          <form onSubmit={onSaveCuisine} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-sm space-y-md">
             <h2 className="text-h3 font-h3 text-slate-100">{editingCuisine.id ? 'Edit' : 'New'} Cuisine</h2>
             <div>
               <label className="block text-label-md text-slate-300 mb-1.5">Name</label>
@@ -96,8 +96,8 @@ export default function MealCategories() {
               Active
             </Checkbox>
             <div className="flex justify-end gap-sm pt-sm">
-              <button type="button" onClick={() => setEditingCuisine(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-              <button type="submit" disabled={saveCuisine.isPending} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+              <button type="button" onClick={() => setEditingCuisine(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+              <button type="submit" disabled={saveCuisine.isPending} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
                 {saveCuisine.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>
@@ -107,7 +107,7 @@ export default function MealCategories() {
 
       {editingCat && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <form onSubmit={onSaveCat} className="bg-surface-container-low border border-outline-variant/50 rounded-lg p-lg w-full max-w-sm space-y-md">
+          <form onSubmit={onSaveCat} className="bg-surface-container-low border border-outline-variant/50 rounded-2xl p-lg w-full max-w-sm space-y-md">
             <h2 className="text-h3 font-h3 text-slate-100">{editingCat.id ? 'Edit' : 'New'} Meal Category</h2>
             <div>
               <label className="block text-label-md text-slate-300 mb-1.5">Cuisine</label>
@@ -128,8 +128,8 @@ export default function MealCategories() {
               Active
             </Checkbox>
             <div className="flex justify-end gap-sm pt-sm">
-              <button type="button" onClick={() => setEditingCat(null)} className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors">Cancel</button>
-              <button type="submit" disabled={saveCat.isPending} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+              <button type="button" onClick={() => setEditingCat(null)} className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors">Cancel</button>
+              <button type="submit" disabled={saveCat.isPending} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 transition-colors">
                 {saveCat.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>

@@ -9,14 +9,20 @@ export function useMe() {
 export function useLogin() {
   return useMutation({
     mutationFn: async (creds) => (await api.post('/login', creds)).data,
-    onSuccess: (data) => setToken(data.token),
+    onSuccess: (data) => {
+      setToken(data.token)
+      if (data.type) localStorage.setItem('user_type', data.type)
+    },
   })
 }
 
 export function useLogout() {
   return useMutation({
     mutationFn: async () => (await api.post('/logout')).data,
-    onSettled: () => setToken(null),
+    onSettled: () => {
+      setToken(null)
+      localStorage.removeItem('user_type')
+    },
   })
 }
 
@@ -69,6 +75,23 @@ export function useDeleteEmployee() {
   })
 }
 
+export function useImportEmployees() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (file) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      return (await api.post('/employees/import', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })).data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employees'] })
+      qc.invalidateQueries({ queryKey: ['sites'] })
+    },
+  })
+}
+
 // Sites
 export function useSites(params = {}) {
   return useQuery({
@@ -104,6 +127,15 @@ export function useDeleteSite() {
   return useMutation({
     mutationFn: async (id) => (await api.delete(`/sites/${id}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sites'] }),
+  })
+}
+
+// Dashboard quotas (today + tomorrow totals + by-rule breakdown)
+export function useDashboardQuotas(params = {}) {
+  return useQuery({
+    queryKey: ['dashboard-quotas', params],
+    queryFn: async () => (await api.get('/dashboard/quotas', { params })).data,
+    staleTime: 60_000,
   })
 }
 
@@ -318,6 +350,191 @@ export function useDeleteSupplierMealAssignment() {
       qc.invalidateQueries({ queryKey: ['supplier-meal-assignments'] })
       qc.invalidateQueries({ queryKey: ['site'] })
     },
+  })
+}
+
+// Supplier login users
+export function useSupplierUsers(supplierId, enabled = true) {
+  return useQuery({
+    queryKey: ['supplier-users', supplierId],
+    enabled: !!supplierId && enabled,
+    queryFn: async () => (await api.get(`/suppliers/${supplierId}/users`)).data,
+  })
+}
+
+export function useSaveSupplierUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ supplierId, ...payload }) => {
+      if (payload.id) {
+        const { id, ...rest } = payload
+        return (await api.put(`/supplier-users/${id}`, rest)).data
+      }
+      return (await api.post(`/suppliers/${supplierId}/users`, payload)).data
+    },
+    onSuccess: (_, { supplierId }) => {
+      qc.invalidateQueries({ queryKey: ['supplier-users', supplierId] })
+    },
+  })
+}
+
+export function useResetSupplierUserPassword() {
+  return useMutation({
+    mutationFn: async ({ id, password }) =>
+      (await api.post(`/supplier-users/${id}/reset-password`, password ? { password } : {})).data,
+  })
+}
+
+export function useDeleteSupplierUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id }) => (await api.delete(`/supplier-users/${id}`)).data,
+    onSuccess: (_, { supplierId }) => {
+      qc.invalidateQueries({ queryKey: ['supplier-users', supplierId] })
+    },
+  })
+}
+
+// Meal Remarks (admin)
+export function useMealRemarks(params = {}) {
+  return useQuery({
+    queryKey: ['meal-remarks', params],
+    queryFn: async () => (await api.get('/meal-remarks', { params })).data,
+  })
+}
+
+export function useSaveMealRemark() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data) => (await api.post('/meal-remarks', data)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meal-remarks'] }),
+  })
+}
+
+export function useDeleteMealRemark() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id) => (await api.delete(`/meal-remarks/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['meal-remarks'] }),
+  })
+}
+
+// ── Supplier portal (supplier-typed token) ──────────────────────────────────
+export function useSupplierDashboard() {
+  return useQuery({
+    queryKey: ['supplier-portal', 'dashboard'],
+    queryFn: async () => (await api.get('/supplier/dashboard')).data,
+  })
+}
+
+export function useSupplierPortalFoodRequests(params = {}) {
+  return useQuery({
+    queryKey: ['supplier-portal', 'food-requests', params],
+    queryFn: async () => (await api.get('/supplier/food-requests', { params })).data,
+  })
+}
+
+export function useSupplierPortalDeliveryNotes(params = {}) {
+  return useQuery({
+    queryKey: ['supplier-portal', 'delivery-notes', params],
+    queryFn: async () => (await api.get('/supplier/delivery-notes', { params })).data,
+  })
+}
+
+export function useSupplierPortalComplaints(params = {}) {
+  return useQuery({
+    queryKey: ['supplier-portal', 'complaints', params],
+    queryFn: async () => (await api.get('/supplier/complaints', { params })).data,
+  })
+}
+
+export function useSupplierPortalAssignments() {
+  return useQuery({
+    queryKey: ['supplier-portal', 'assignments'],
+    queryFn: async () => (await api.get('/supplier/assignments')).data,
+  })
+}
+
+export function useSupplierPortalSites() {
+  return useQuery({
+    queryKey: ['supplier-portal', 'sites'],
+    queryFn: async () => (await api.get('/supplier/sites')).data,
+  })
+}
+
+export function useSupplierPortalMealRules() {
+  return useQuery({
+    queryKey: ['supplier-portal', 'meal-rules'],
+    queryFn: async () => (await api.get('/supplier/meal-rules')).data,
+  })
+}
+
+export function useUpdateSupplierProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data) => (await api.patch('/supplier/profile', data)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  })
+}
+
+export function useUpdateSupplierPassword() {
+  return useMutation({
+    mutationFn: async (data) => (await api.post('/supplier/password', data)).data,
+  })
+}
+
+export function useConfirmDelivery() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, status, quantity_delivered, notes, attachment }) => {
+      const fd = new FormData()
+      fd.append('status', status)
+      if (quantity_delivered != null && quantity_delivered !== '') fd.append('quantity_delivered', quantity_delivered)
+      if (notes) fd.append('notes', notes)
+      if (attachment instanceof File) fd.append('attachment', attachment)
+      return (await api.post(`/supplier/delivery-notes/${id}/confirm`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })).data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-portal', 'delivery-notes'] })
+      qc.invalidateQueries({ queryKey: ['supplier-portal', 'dashboard'] })
+    },
+  })
+}
+
+export function useRespondToComplaint() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, supplier_response }) =>
+      (await api.post(`/supplier/complaints/${id}/respond`, { supplier_response })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-portal', 'complaints'] })
+      qc.invalidateQueries({ queryKey: ['supplier-portal', 'dashboard'] })
+    },
+  })
+}
+
+export function useSupplierMealRemarks(params = {}) {
+  return useQuery({
+    queryKey: ['supplier-portal', 'meal-remarks', params],
+    queryFn: async () => (await api.get('/supplier/meal-remarks', { params })).data,
+  })
+}
+
+export function useSaveSupplierMealRemark() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data) => (await api.post('/supplier/meal-remarks', data)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['supplier-portal', 'meal-remarks'] }),
+  })
+}
+
+export function useDeleteSupplierMealRemark() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id) => (await api.delete(`/supplier/meal-remarks/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['supplier-portal', 'meal-remarks'] }),
   })
 }
 

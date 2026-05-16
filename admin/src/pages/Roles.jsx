@@ -10,7 +10,17 @@ import { useCan } from '../lib/permissions'
 import Checkbox from '../components/Checkbox'
 
 const inputCls =
-  'w-full bg-surface-container-lowest border border-outline-variant/50 rounded px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none transition-all'
+  'w-full bg-surface-container-high/50 border border-outline-variant/30 rounded-lg px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 hover:bg-surface-container-high/70 hover:border-outline-variant/50 focus:bg-surface-container-high focus:border-blue-400 focus:ring-1 focus:ring-blue-400/60 focus:outline-none transition-all'
+
+const STANDARD_ACTIONS = ['view', 'create', 'update', 'delete']
+const ACTION_LABELS = {
+  view: 'View',
+  create: 'Create',
+  update: 'Edit',
+  delete: 'Delete',
+  export: 'Export',
+  import: 'Import',
+}
 
 export default function Roles() {
   const canCreate = useCan('roles.create')
@@ -67,7 +77,7 @@ export default function Roles() {
         {canCreate && (
           <button
             onClick={startCreate}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition-colors"
+            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 flex items-center gap-2 whitespace-nowrap transition-colors"
           >
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
             New role
@@ -289,7 +299,7 @@ function RoleEditor({
             <button
               type="button"
               onClick={onCancelCreate}
-              className="px-4 py-2 rounded border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 transition-colors"
+              className="px-4 py-2 rounded-lg border border-outline-variant/50 text-sm text-slate-300 hover:bg-surface-container-highest/40 focus:outline-none focus:ring-2 focus:ring-blue-400/30 transition-colors"
             >
               Cancel
             </button>
@@ -297,7 +307,7 @@ function RoleEditor({
           <button
             type="submit"
             disabled={save.isPending || formDisabled || isSystem}
-            className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {save.isPending ? 'Saving…' : creating ? 'Create role' : 'Save changes'}
           </button>
@@ -351,35 +361,91 @@ function RoleEditor({
         )}
       </div>
 
-      <div className="px-lg pb-lg space-y-1.5">
+      <div className="px-lg pb-lg space-y-4">
         {permsLoading && <div className="text-sm text-slate-500">Loading permissions…</div>}
-        {grouped.map((g) => {
+        {grouped.map((g, idx) => {
+          const stdPerms = STANDARD_ACTIONS.map((a) => ({
+            action: a,
+            perm: g.permissions.find((p) => (p.key.split('.').pop() || '') === a),
+          }))
+          const extraPerms = g.permissions.filter((p) => {
+            const action = p.key.split('.').pop() || ''
+            return !STANDARD_ACTIONS.includes(action)
+          })
           const ids = g.permissions.map((p) => p.id)
           const selectedInGroup = ids.filter((id) => form.permission_ids.includes(id)).length
-          const allInGroup = selectedInGroup === ids.length
+          const allInGroup = ids.length > 0 && selectedInGroup === ids.length
           const someInGroup = selectedInGroup > 0 && !allInGroup
           return (
             <div
               key={g.group}
-              className="border border-outline-variant/30 rounded-lg px-3 py-2.5 bg-surface-container-lowest/40 hover:bg-surface-container-lowest/60 transition-colors"
+              className="bg-surface-container-lowest/40 border border-outline-variant/30 rounded-2xl p-4"
             >
-              <div className="flex items-center gap-3 flex-wrap">
-                <Checkbox
-                  checked={allInGroup}
-                  indeterminate={someInGroup}
-                  disabled={!interactive}
-                  size={20}
-                  onChange={() => toggleGroup(g.permissions)}
-                  className="min-w-[180px]"
-                  labelClassName=""
-                >
-                  <span className="text-sm font-semibold text-slate-100">{g.group}</span>
-                </Checkbox>
-                <div className="flex items-center gap-2 flex-wrap flex-1">
-                  {g.permissions.map((p) => {
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/15 border border-blue-500/40 flex items-center justify-center text-blue-300 text-sm font-bold tabular-nums shrink-0">
+                  {idx + 1}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-slate-100 leading-tight">{g.group}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Manage {g.group.toLowerCase()} permissions</p>
+                </div>
+                <span className="ml-auto text-[11px] text-slate-500 tabular-nums shrink-0">
+                  {selectedInGroup}/{ids.length} selected
+                </span>
+              </div>
+              <div className="rounded-xl border border-outline-variant/30 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-container-highest/30 text-[10px] uppercase tracking-wider text-slate-400">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 font-semibold">Feature</th>
+                      <th className="px-4 py-2.5 font-semibold text-center">All</th>
+                      <th className="px-4 py-2.5 font-semibold text-center">View</th>
+                      <th className="px-4 py-2.5 font-semibold text-center">Create</th>
+                      <th className="px-4 py-2.5 font-semibold text-center">Edit</th>
+                      <th className="px-4 py-2.5 font-semibold text-center">Delete</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-outline-variant/20">
+                      <td className="px-4 py-3 text-slate-200 font-medium">{g.group}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center">
+                          <Checkbox
+                            checked={allInGroup}
+                            indeterminate={someInGroup}
+                            disabled={!interactive}
+                            size={20}
+                            onChange={() => toggleGroup(g.permissions)}
+                          />
+                        </div>
+                      </td>
+                      {stdPerms.map(({ action, perm }) => (
+                        <td key={action} className="px-4 py-3">
+                          <div className="flex justify-center">
+                            {perm ? (
+                              <Checkbox
+                                checked={form.permission_ids.includes(perm.id)}
+                                disabled={!interactive}
+                                size={20}
+                                onChange={() => togglePerm(perm.id)}
+                              />
+                            ) : (
+                              <span className="text-slate-700">—</span>
+                            )}
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {extraPerms.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap mt-3 pt-3 border-t border-outline-variant/20">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Extra:</span>
+                  {extraPerms.map((p) => {
                     const checked = form.permission_ids.includes(p.id)
-                    const action = (p.key.split('.').pop() || p.key)
-                    const label = action.charAt(0).toUpperCase() + action.slice(1)
+                    const action = p.key.split('.').pop() || p.key
+                    const label = ACTION_LABELS[action] || action.charAt(0).toUpperCase() + action.slice(1)
                     return (
                       <button
                         key={p.id}
@@ -388,7 +454,7 @@ function RoleEditor({
                         onClick={() => togglePerm(p.id)}
                         title={p.label}
                         className={
-                          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border transition-colors disabled:cursor-not-allowed ' +
+                          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors disabled:cursor-not-allowed ' +
                           (checked
                             ? 'bg-blue-600/20 border-blue-500/60 text-blue-100 hover:bg-blue-600/30'
                             : 'bg-surface-container-lowest border-outline-variant/40 text-slate-400 hover:text-slate-200 hover:border-outline-variant')
@@ -402,10 +468,7 @@ function RoleEditor({
                     )
                   })}
                 </div>
-                <span className="text-[11px] text-slate-500 tabular-nums w-10 text-right shrink-0">
-                  {selectedInGroup}/{ids.length}
-                </span>
-              </div>
+              )}
             </div>
           )
         })}
